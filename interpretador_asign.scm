@@ -72,13 +72,15 @@
     ; Primitivas
     (expression (primitive "(" (separated-list expression ",") ")") primapp-exp)
 
-    #|
+    
     ; Definiciones
 
-    (expression ("var" (separated-list (identifier "=" expression) ",") "in" expression)
+    (expression ("var" (separated-list identifier "=" expression ",") "in" expression)
                 var-exp)
-    (expression ("const" (separated-list (identifier "=" expression) ",") "in" expression)
+    (expression ("const" (separated-list identifier "=" expression ",") "in" expression)
                 const-exp)
+
+    #|
     (expression ("rec" (separated-list (identifier "(" (separated-list identifier ",") ")" "=" expression) ",") "in" expression)
                 letrec-exp)
     
@@ -255,6 +257,11 @@
       (a-program (body)
                  (eval-expression body (init-env))))))
 
+(define-datatype target target?
+  (direct-target (expval expval?))
+  (const-target (expval expval?))
+  (indirect-target (ref ref-to-direct-target?)))
+
 (define init-env
   (lambda ()
     (extend-env
@@ -272,6 +279,15 @@
       (primapp-exp (prim rands)
                    (let ((args (eval-rands rands env)))
                      (apply-primitive prim args)))
+      (var-exp (vars rands body)
+               (let ((args (eval-rands rands env)))
+                 (eval-expression body (extended-env-record vars (list->vector args) env))))
+
+      (const-exp (ids rands body)
+                (let ((args (map (lambda (x) (const-target (eval-expression x env))) rands)))
+                   (eval-expression body (extended-env-record ids (list->vector args) env))))
+
+      
       (if-exp (test-exp true-exp false-exp)
               (true-value? (eval-exp-bool test-exp env))
               (if (true-value? (eval-exp-bool test-exp env))
@@ -310,6 +326,7 @@
               (newline) "fin del print"
                   ))
     )))
+
 ; funciones auxiliares para aplicar eval-expression a cada elemento de una 
 ; lista de operandos (expresiones)
 (define eval-rands
@@ -349,6 +366,21 @@
     (cases procval proc
       (closure (ids body env)
                (eval-expression body (extend-env ids args env))))))
+
+
+(define expval?
+  (lambda (x)
+    (or (number? x) (procval? x) (string? x) (list? x) (vector? x))))
+;
+(define ref-to-direct-target?
+  (lambda (x)
+    (and (reference? x)
+         (cases reference x
+           (a-ref (pos vec)
+                  (cases target (vector-ref vec pos)
+                    (direct-target (v) #t)
+                    (const-target (v) #t)
+                    (indirect-target (v) #f)))))))
 
 ;*******************************************************************************************
 ;Ambientes
