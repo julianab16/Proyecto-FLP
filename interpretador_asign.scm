@@ -67,7 +67,12 @@
 
     ;Identificadores
     (expression (identifier) id-exp)
+    (expression (number) num-exp)
 
+    ; Primitivas
+    (expression (primitive "(" (separated-list expression ",") ")") primapp-exp)
+
+    #|
     ; Definiciones
 
     (expression ("var" (separated-list (identifier "=" expression) ",") "in" expression)
@@ -78,25 +83,25 @@
                 letrec-exp)
     
     ; Datos
-
     (expression (number) num-exp)
     (expression ("x8" "(" (arbno number) ")") num-oct-exp)
     (expression ("x16" "(" (arbno number) ")") num-hex-exp)
     (expression ("x32" "(" (arbno number) ")") num-base32-exp)
     (expression (cadena) string-exp)
-    (bool ("True") true-bool)
-    (bool ("False") false-bool)
 
     ; Const datos predefinidos
 
     (expression ("list" "[" (separated-list expression ",") "]" ) list-exp)
     (expression ("tupla" "[" (separated-list expression ";") "]" ) tupla-exp)
     (expression ("registro" "{" (separated-list (identifier "=" expression) ";") "}") register-exp)
+    |#
     (expression (expr-bool) expr-bool-exp)
-    (expr-bool (expression pred-prim expression) pred-prim-exp)
-    (expr-bool (expr-bool oper-bin-bool expr-bool) oper-bin-exp)
+
+    (expr-bool (pred-prim "(" expression "," expression ")") pred-exp-bool)
+    (expr-bool (oper-bin-bool "(" expr-bool "," expr-bool ")") binop-exp-bool)
+    (expr-bool (oper-un-bool "(" expr-bool ")") unop-exp-bool)
     (expr-bool (bool) bool-exp)
-    (expr-bool (oper-un-bool "(" expr-bool ")") oper-un-bool-exp)
+
     ; pred-prim
     (pred-prim (">") mayor-exp)
     (pred-prim (">=") mayor-igual-exp)
@@ -110,25 +115,26 @@
     ; oper-un-bool
     (oper-un-bool ("not") not-prim)
 
+    (bool ("True") true-bool)
+    (bool ("False") false-bool)
+
     ; Estructuras de control
 
     (expression ("begin" expression (arbno ";" expression) "end") begin-exp) 
     (expression ("if" expr-bool ":" expression "else" ":" expression) if-exp) 
-    (expression ("while" expr-bool ":" expression) while-exp)
-    (expression ("for" identifier "in" expression ":" expression) for-exp)
-
-
-    ; Primitivas
-    (expression (primitive "(" (separated-list expression ",") ")") primapp-exp)
+    (expression ("while" expr-bool "do" expression "done" ) while-exp)
+    ;(expression ("for" identifier "in" expression ":" expression) for-exp)
 
     ; enteros
     (primitive ("+") add-prim)
     (primitive ("-") substract-prim)
     (primitive ("*") mult-prim)
-    (primitive ("/") div-prim)
-    (primitive ("%") mod-prim)
+    ;(primitive ("/") div-prim)
+    ;(primitive ("%") mod-prim)
     (primitive ("add1") incr-prim)
     (primitive ("sub1") decr-prim)
+
+    #|
     ; base octal
     (primitive ("+(x8)") oct-suma)
     (primitive ("~(x8)") oct-resta)
@@ -195,14 +201,14 @@
     (gate ("(" "gate" identifier  type input_list ")") a-gate)
     (input_list ("(" (arbno input-item) ")" ) input-list)
     (input-item (bool) bool-input)
-    (input-item (identifier) id-input)
+    (input-item (identifier) id-input) |#
+
+    ; Imprimir
+    (expression ("print" "(" expression ")") print-exp)
 
     ; Set
     (expression ("set" identifier "=" expression)
                 set-exp)
-
-    ; Imprimir
-    (expression ("print" "(" expression ")") print-exp)
     ))
 
 ;******************************************************************************************
@@ -249,28 +255,12 @@
       (a-program (body)
                  (eval-expression body (init-env))))))
 
-; Ambiente inicial
-;(define init-env
-;  (lambda ()
-;    (extend-env
-;     '(x y z)
-;     '(4 2 5)
-;     (empty-env))))
-
 (define init-env
   (lambda ()
     (extend-env
-     '(i v x)
-     '(1 5 10)
+     '(x y z)
+     '(3 5 10)
      (empty-env))))
-
-;(define init-env
-;  (lambda ()
-;    (extend-env
-;     '(x y z f)
-;     (list 4 2 5 (closure '(y) (primapp-exp (mult-prim) (cons (var-exp 'y) (cons (primapp-exp (decr-prim) (cons (var-exp 'y) ())) ())))
-;                      (empty-env)))
-;     (empty-env))))
 
 ;eval-expression: <expression> <enviroment> -> numero
 ; evalua la expresión en el ambiente de entrada
@@ -283,31 +273,19 @@
                    (let ((args (eval-rands rands env)))
                      (apply-primitive prim args)))
       (if-exp (test-exp true-exp false-exp)
-              (if (true-value? (eval-expression test-exp env))
+              (true-value? (eval-exp-bool test-exp env))
+              (if (true-value? (eval-exp-bool test-exp env))
                   (eval-expression true-exp env)
-                  (eval-expression false-exp env)))
-      (let-exp (ids rands body)
-               (let ((args (eval-rands rands env)))
-                 (eval-expression body
-                                  (extend-env ids args env))))
-      (proc-exp (ids body)
-                (closure ids body env))
-      (app-exp (rator rands)
-               (let ((proc (eval-expression rator env))
-                     (args (eval-rands rands env)))
-                 (if (procval? proc)
-                     (apply-procedure proc args)
-                     (eopl:error 'eval-expression
-                                 "Attempt to apply non-procedure ~s" proc))))
-      (letrec-exp (proc-names idss bodies letrec-body)
-                  (eval-expression letrec-body
-                                   (extend-env-recursively proc-names idss bodies env)))
+                  (eval-expression false-exp env))
+              )
       (set-exp (id rhs-exp)
-               (begin
-                 (setref!
-                  (apply-env-ref env id)
-                  (eval-expression rhs-exp env))
-                 1))
+          (let ((val (eval-expression rhs-exp env)))
+          (display val)
+          (newline)
+            (setref! (apply-env-ref env id) val)
+            val)
+               )
+
       (begin-exp (exp exps) 
                  (let loop ((acc (eval-expression exp env))
                              (exps exps))
@@ -315,8 +293,23 @@
                         acc
                         (loop (eval-expression (car exps) 
                                                env)
-                              (cdr exps))))))))
-
+                              (cdr exps)))))
+      (expr-bool-exp (exp) 
+                     (eval-exp-bool exp env))
+        
+      (while-exp (exp1 exp2)
+                  (let loop ((test (eval-exp-bool exp1 env)))
+                    (if (true-value? test)
+                        (begin
+                          (eval-expression exp2 env)
+                          (loop (eval-exp-bool exp1 env)))
+                        "fin del bucle"))
+                )
+      (print-exp (exp)
+            (begin (display (eval-expression exp env))
+              (newline) "fin del print"
+                  ))
+    )))
 ; funciones auxiliares para aplicar eval-expression a cada elemento de una 
 ; lista de operandos (expresiones)
 (define eval-rands
@@ -340,7 +333,7 @@
 ;true-value?: determina si un valor dado corresponde a un valor booleano falso o verdadero
 (define true-value?
   (lambda (x)
-    (not (zero? x))))
+    (eq? x #t)))
 
 ;*******************************************************************************************
 ;Procedimientos
@@ -404,16 +397,6 @@
       (if (>= next end) '()
         (cons next (loop (+ 1 next)))))))
 
-;(define iota
-;  (lambda (end)
-;    (iota-aux 0 end)))
-;
-;(define iota-aux
-;  (lambda (ini fin)
-;    (if (>= ini fin)
-;        ()
-;        (cons ini (iota-aux (+ 1 ini) fin)))))
-
 ;función que busca un símbolo en un ambiente
 (define apply-env
   (lambda (env sym)
@@ -457,8 +440,7 @@
   (lambda (ref val)
     (cases reference ref
       (a-ref (pos vec)
-             (vector-set! vec pos val)))))
-
+            (vector-set! vec pos val)))))
 
 ;****************************************************************************************
 ;Funciones Auxiliares
@@ -485,41 +467,68 @@
                 #f))))))
 
 ;******************************************************************************************
+(define (eval-exp-bool exp env)
+  (cases expr-bool exp
+    (pred-exp-bool (prim e1 e2)
+      ((lookup-prim prim)
+       (eval-expression e1 env)
+       (eval-expression e2 env)))
+
+    (binop-exp-bool (op b1 b2)
+      ((lookup-bool-binop op)
+       (eval-exp-bool b1 env)
+       (eval-exp-bool b2 env)))
+
+    (unop-exp-bool (op b)
+      ((lookup-bool-unop op)
+       (eval-exp-bool b env)))
+
+    (bool-exp (b)
+      (cases bool b
+        (true-bool () #t)
+        (false-bool () #f)))
+    ))
+
+(define (lookup-prim prim)
+  (cases pred-prim prim
+    (mayor-exp() (lambda (x y) (> x y)))
+    (menor-exp () (lambda (x y) (< x y)))
+    (mayor-igual-exp () (lambda (x y) (>= x y)))
+    (menor-igual-exp () (lambda (x y) (<= x y)))
+    (igual-exp () (lambda (x y) (= x y)))
+    (diferente-exp () (lambda (x y) (not (= x y))))))
+
+(define (lookup-bool-binop op)
+  (cases oper-bin-bool op
+    (and-prim () (lambda (x y) (and x y)))
+    (or-prim () (lambda (x y) (or x y)))))
+
+(define (lookup-bool-unop op)
+  (cases  oper-un-bool op
+    (not-prim () (lambda (x) (not x)))))
+
+;******************************************************************************************
+
 ;Pruebas
 
 (show-the-datatypes)
 just-scan
 scan&parse
-(just-scan "add1(x)")
-(just-scan "add1(   x   )%cccc")
-(just-scan "add1(  +(5, x)   )%cccc")
-(just-scan "add1(  +(5, %ccccc x) ")
-(scan&parse "add1(x)")
-(scan&parse "add1(   x   )%cccc")
-(scan&parse "add1(  +(5, x)   )%cccc")
-(scan&parse "add1(  +(5, %cccc
-x)) ")
-(scan&parse "if -(x,4) then +(y,11) else *(y,10)")
-(scan&parse "let
-x = -(y,1)
-in
-let
-x = +(x,2)
-in
-add1(x)")
 
-(define caso1 (primapp-exp (incr-prim) (list (num-exp 5))))
-(define exp-numero (num-exp 8))
-(define exp-ident (id-exp 'c))
-(define exp-app (primapp-exp (add-prim) (list exp-numero exp-ident)))
-(define programa (a-program exp-app))
-(define una-expresion-dificil (primapp-exp (mult-prim)
-                                           (list (primapp-exp (incr-prim)
-                                                              (list (id-exp 'v)
-                                                                    (id-exp 'y)))
-                                                 (id-exp 'x)
-                                                 (num-exp 200))))
-(define un-programa-dificil
-    (a-program una-expresion-dificil))
+(newline)
+;== (3, 3)             ; ⇒ #t
+;!= (3, 4)              ; ⇒ #t
+;> (5, 2)            ; ⇒ #t
+;>= (5, 5)              ; ⇒ #t
+;<= (3, 8)             ; ⇒ #t
 
-(interpretador)
+;not (and (True , False))  ; ⇒ #t
+;not (or (True , False)) ; ⇒ #f
+;not (> (x , 5)) ; ⇒ #t
+;and (> (x , 0) , < (x , 10)) ; ⇒ #t
+
+;if >=(+ (2 , 3) , 5) : * (2 , 2) else : 0 ; ⇒ 4
+;set x = + (2, 3) ; ⇒ 5
+
+;while and (> (x , 0) , < (x , 10)) do set x =-(x,1) done 
+;(interpretador)
