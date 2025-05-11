@@ -43,7 +43,7 @@
 '((white-sp
    (whitespace) skip)
   (comment
-   ("%" (arbno (not #\newline))) skip)
+   ("//" (arbno (not #\newline))) skip)
   (identifier
    (letter (arbno (or letter digit "?"))) symbol)
   (number
@@ -68,10 +68,12 @@
     ;Identificadores
     (expression (identifier) id-exp)
     (expression (number) num-exp)
+    (expression (cadena) string-exp)
 
     ; Primitivas
     (expression (primitive "(" (separated-list expression ",") ")") primapp-exp)
 
+    
     
     ; Definiciones
 
@@ -95,8 +97,12 @@
 
     (expression ("list" "[" (separated-list expression ",") "]" ) list-exp)
     (expression ("tupla" "[" (separated-list expression ";") "]" ) tupla-exp)
-    (expression ("registro" "{" (separated-list (identifier "=" expression) ";") "}") register-exp)
     |#
+
+    ; Registros
+    (register-item (identifier "=" expression) register-item-exp)
+    (expression ("{" (separated-list register-item ";") "}") register-exp)
+
     (expression (expr-bool) expr-bool-exp)
 
     (expr-bool (pred-prim "(" expression "," expression ")") pred-exp-bool)
@@ -131,8 +137,8 @@
     (primitive ("+") add-prim)
     (primitive ("-") substract-prim)
     (primitive ("*") mult-prim)
-    ;(primitive ("/") div-prim)
-    ;(primitive ("%") mod-prim)
+    (primitive ("/") div-prim)
+    (primitive ("%") mod-prim)
     (primitive ("add1") incr-prim)
     (primitive ("sub1") decr-prim)
 
@@ -276,9 +282,12 @@
     (cases expression exp
       (num-exp (datum) datum)
       (id-exp (id) (apply-env env id))
+      (string-exp (s) s)
       (primapp-exp (prim rands)
+      ;(prim)
                    (let ((args (eval-rands rands env)))
                      (apply-primitive prim args)))
+      ; Definiciones
       (var-exp (vars rands body)
                (let ((args (eval-rands rands env)))
                  (eval-expression body (extended-env-record vars (list->vector args) env))))
@@ -321,6 +330,8 @@
                           (loop (eval-exp-bool exp1 env)))
                         "fin del bucle"))
                 )
+      (register-exp (exp) 
+                   (eval-expression exp env))
       (print-exp (exp)
             (begin (display (eval-expression exp env))
               (newline) "fin del print"
@@ -344,6 +355,8 @@
       (add-prim () (+ (car args) (cadr args)))
       (substract-prim () (- (car args) (cadr args)))
       (mult-prim () (* (car args) (cadr args)))
+      (div-prim () (/(car args) (cadr args)))
+      (mod-prim () (modulo (car args) (cadr args)))
       (incr-prim () (+ (car args) 1))
       (decr-prim () (- (car args) 1)))))
 
@@ -351,6 +364,7 @@
 (define true-value?
   (lambda (x)
     (eq? x #t)))
+
 
 ;*******************************************************************************************
 ;Procedimientos
@@ -499,6 +513,8 @@
                 #f))))))
 
 ;******************************************************************************************
+;Funciones para evaluar expresiones booleanas
+
 (define (eval-exp-bool exp env)
   (cases expr-bool exp
     (pred-exp-bool (prim e1 e2)
@@ -527,8 +543,8 @@
     (menor-exp () (lambda (x y) (< x y)))
     (mayor-igual-exp () (lambda (x y) (>= x y)))
     (menor-igual-exp () (lambda (x y) (<= x y)))
-    (igual-exp () (lambda (x y) (= x y)))
-    (diferente-exp () (lambda (x y) (not (= x y))))))
+    (igual-exp () (lambda (x y) (equal? x y)))
+    (diferente-exp () (lambda (x y) (not (equal? x y))))))
 
 (define (lookup-bool-binop op)
   (cases oper-bin-bool op
@@ -538,6 +554,12 @@
 (define (lookup-bool-unop op)
   (cases  oper-un-bool op
     (not-prim () (lambda (x) (not x)))))
+
+
+;******************************************************************************************
+;Definición de los tipos de datos para los registros
+
+
 
 ;******************************************************************************************
 
@@ -563,4 +585,4 @@ scan&parse
 ;set x = + (2, 3) ; ⇒ 5
 
 ;while and (> (x , 0) , < (x , 10)) do set x =-(x,1) done 
-;(interpretador)
+(interpretador)
