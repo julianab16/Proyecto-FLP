@@ -73,8 +73,6 @@
     ; Primitivas
     (expression (primitive "(" (separated-list expression ",") ")") primapp-exp)
 
-    
-    
     ; Definiciones
 
     (expression ("var" (separated-list identifier "=" expression ",") "in" expression)
@@ -101,8 +99,8 @@
     |#
 
     ; Registros
-    (register-item (identifier "=" expression) register-item-exp)
-    (expression ("{" (separated-list register-item ";") "}") register-exp)
+    
+    (expression ("{" (separated-list identifier "=" expression ";") "}") register-exp)
 
     (expression (expr-bool) expr-bool-exp)
 
@@ -347,8 +345,8 @@
                           (loop (eval-exp-bool exp1 env)))
                         "fin del bucle"))
                 )
-      (register-exp (exp) 
-                   (eval-expression exp env))
+      (register-exp (key value)
+            (crear-registro key value))
       (print-exp (exp)
             (begin (display (eval-expression exp env))
               (newline) "fin del print"
@@ -657,11 +655,70 @@
 
 
 
+
+;-------------------------LISTAS---------------------------------------
+;datatype para representar las listas
+
+
+;extract-values-list <lista> -> <list>
+;Funcion que extrae la list de valores de un datatype lista
+
+;-------------------------VECTORES---------------------------------
+;datatype para representar vectores
+(define-datatype vec vec?
+  (empty-vec)
+  (vec-a (values vector?))
+  )
+
+;extract-values-vec <vec> -> <vector>
+;Funcion que extrae el vector de valores de un datatype vec
+(define extract-values-vec
+  (lambda (vector)
+    (cases vec vector
+      (empty-vec()( #() ))
+      (vec-a (values) values))
+    )
+  )
 ;******************************************************************************************
 ;Definición de los tipos de datos para los registros
 
+(define-datatype registro registro?
+  (reg-a 
+   (keys (list-of symbol?))    ; Lista de identificadores
+   (values vector?))
+)
 
+(define crear-registro
+  (lambda (keys values)
+    (if (not (list? keys))
+        (eopl:error "Las claves deben ser una lista de identificadores")
+        (if (not (list? values))
+            (eopl:error "Los valores deben ser una lista")
+            (let ((k keys)
+                  (values1 (list->vector values)))
+              (if (and (null? k) (= (vector-length values1) 0))
+                  (eopl:error "Se requiere al menos un par identificador=expresión")
+                  (reg-a k values1)))))))
 
+(define ref-registro
+  (lambda (reg key)
+    (cases registro reg
+      (reg-a (keys values)
+             (let ((pos (rib-find-position key keys)))
+               (if (number? pos)
+                   (deref (a-ref pos values))
+                   (eopl:error "No existe el identificador")))))))
+
+(define set-registro
+  (lambda (reg key value)
+    (cases registro reg
+      (reg-a (keys values)
+             (let ((pos (rib-find-position key keys)))
+               (if (number? pos)
+                   (begin
+                     (setref! (a-ref pos values) value)
+                     value)
+                   (eopl:error "No existe el identificador")))))))
 ;******************************************************************************************
 
 ;Pruebas
@@ -686,4 +743,19 @@ scan&parse
 ;set x = + (2, 3) ; ⇒ 5
 
 ;while and (> (x , 0) , < (x , 10)) do set x =-(x,1) done 
+
+(define mi-registro (crear-registro '(x y) '(4 7)))
+
+(display(ref-registro mi-registro 'x)) ; Resultado: 4
+(newline)
+(display(ref-registro mi-registro 'y)) ; Resultado: 7
+
+(set-registro mi-registro 'x 10)        ; Cambia el valor de 'x' a 10
+(newline)
+(display (ref-registro mi-registro 'x)) ; Resultado: 10
+(newline)
+
+(display (ref-registro mi-registro 'y)) ; Resultado: 7 (sin cambios)
+(newline)
+
 (interpretador)
