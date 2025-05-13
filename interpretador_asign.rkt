@@ -80,9 +80,9 @@
     (expression ("const" (separated-list identifier "=" expression ",") "in" expression)
                 const-exp)
 
-    #|
-    (expression ("rec" (separated-list (identifier "(" (separated-list identifier ",") ")" "=" expression) ",") "in" expression)
-                letrec-exp)
+    
+    #| (expression ("rec" (separated-list (identifier "(" (separated-list identifier ",") ")" "=" expression) ",") "in" expression)
+                letrec-exp) |#
     
     ; Datos
     (expression (number) num-exp)
@@ -90,7 +90,8 @@
     (expression ("x16" "(" (arbno number) ")") num-hex-exp)
     (expression ("x32" "(" (arbno number) ")") num-base32-exp)
     (expression (cadena) string-exp)
-
+     #|
+ 
     ; Const datos predefinidos
 
     (expression ("list" "[" (separated-list expression ",") "]" ) list-exp)
@@ -152,25 +153,26 @@
     (primitive ("add1") incr-prim)
     (primitive ("sub1") decr-prim)
 
-    #|
+    
     ; base octal
     (primitive ("+(x8)") oct-suma)
-    (primitive ("~(x8)") oct-resta)
+    (primitive ("-(x8)") oct-resta)
     (primitive ("*(x8)") oct-multi)
     (primitive ("add1(x8)") oct-add1)
-    (primitiva-unaria ("sub1(x8)") oct-sub1)
+    (primitive ("sub1(x8)") oct-sub1)
     ; hexadecimales
     (primitive ("+(x16)") hex-suma)
-    (primitive ("~(x16)") hex-resta)
+    (primitive ("-(x16)") hex-resta)
     (primitive ("*(x16)") hex-multi)
     (primitive ("add1(x16)") hex-add1)
     (primitive ("sub1(x16)") hex-sub1)
     ; base 32
     (primitive ("+(x32)") b32-suma)
-    (primitive ("~(x32)") b32-resta)
+    (primitive ("-(x32)") b32-resta)
     (primitive ("*(x32)") b32-multi)
     (primitive ("add1(x32)") b32-add1)
     (primitive ("sub1(x32)") b32-sub1)
+    #|
 
     ; Primitivas sobre cadenas
     (primitive ("longitud") longitud-prim)
@@ -219,6 +221,13 @@
     ; Set
     (expression ("set" identifier "=" expression)
                 set-exp)
+
+    ; Conversion numeros
+    (expression ("decimal-to-base" "(" expression ";" expression ")")
+               decimal-to-base-exp)
+    (expression ("base-to-decimal" "(" expression ";" expression ")")
+               base-to-decimal-exp)
+
     ))
 
 ;******************************************************************************************
@@ -282,7 +291,10 @@
 (define eval-expression
   (lambda (exp env)
     (cases expression exp
-      (num-exp (datum) datum)
+      (num-exp (number) number)
+      (num-oct-exp (number) number)
+      (num-hex-exp (number) number)
+      (num-base32-exp (number) number)
       (id-exp (id) (apply-env env id))
       (string-exp (s) s)
       (primapp-exp (prim rands)
@@ -298,6 +310,11 @@
           (else
             (let ((args (eval-rands rands env)))
               (apply-primitive prim args env)))))
+
+      ; Conversion numeros
+      (decimal-to-base-exp (num base) (decimal-to-base (eval-expression num env) (eval-expression base env)))
+      (base-to-decimal-exp (lst base) (base-to-decimal (eval-expression lst env) (eval-expression base env)))
+
       ; Definiciones
       (var-exp (vars rands body)
                (let ((args (eval-rands rands env))) 
@@ -406,16 +423,37 @@
               arg
               (eopl:error 'crear-registro-prim "El argumento no es válido para crear un registro"))))
       (ref-registro-prim ()
-  (let* ((reg (eval-expression (car args) env))
-         (key (eval-expression (cadr args) env)))
-    (if (symbol? key)
-        (ref-registro reg key)
-        (eopl:error 'ref-registro-prim "El segundo argumento debe ser un símbolo"))))
+      (let* ((reg (eval-expression (car args) env))
+            (key (eval-expression (cadr args) env)))
+        (if (symbol? key)
+            (ref-registro reg key)
+            (eopl:error 'ref-registro-prim "El segundo argumento debe ser un símbolo"))))
       (set-registro-prim ()
             (set-registro (eval-expression (car args) env)
                               (eval-expression (cadr args) env)
                               (eval-expression (caddr args) env)))
-    )))
+      ; base octal
+      (oct-suma () (suma-base (car args) (cadr args) 8))
+      (oct-resta () (resta-base (car args) (cadr args) 8))
+      (oct-multi () (multi-base (car args) (cadr args) 8))
+      (oct-add1 () (sucesor-base (car args) 8))
+      (oct-sub1 () (predecesor-base (car args) 8))
+          
+      ; base hexadecimal
+      (hex-suma () (suma-base (car args) (cadr args) 16))
+      (hex-resta () (resta-base (car args) (cadr args) 16))
+      (hex-multi () (multi-base (car args) (cadr args) 16))
+      (hex-add1 () (sucesor-base (car args) 16))
+      (hex-sub1 () (predecesor-base (car args) 16))
+      
+      ; base 32
+      (b32-suma () (suma-base (car args) (cadr args) 32))
+      (b32-resta () (resta-base (car args) (cadr args) 32))
+      (b32-multi () (multi-base (car args) (cadr args) 32))
+      (b32-add1 () (sucesor-base (car args) 32))
+      (b32-sub1 () (predecesor-base (car args) 32))
+
+      )))
 
 ;true-value?: determina si un valor dado corresponde a un valor booleano falso o verdadero
 (define true-value?
@@ -616,6 +654,69 @@
 (define (lookup-bool-unop op)
   (cases  oper-un-bool op
     (not-prim () (lambda (x) (not x)))))
+
+;******************************************************************************************
+;Funciones para operar numeros no decimales en base 8,16 y 32
+
+(define decimal-to-base
+  (lambda (n b)
+    (if (= n 0)
+        '()
+        (cons (remainder n b)
+              (decimal-to-base (quotient n b) b)))))
+
+(define base-to-decimal
+  (lambda (lst b)
+    (let loop ((lst lst) (pos 0) (acc 0))
+      (if (null? lst)
+          acc
+          (loop (cdr lst)
+                (+ 1 pos)
+                (+ acc (* (car lst) (expt b pos))))))))
+
+
+(define sucesor-base
+  (lambda (num base)
+    (if(null? num)
+      '(1)
+      (if (< (car num) (- base 1 ))
+           (cons (+ 1 (car num)) (cdr num)  )
+          (cons 0 (sucesor-base(cdr num) base ) )
+          ))))
+
+(define predecesor-base
+  (lambda (num base)
+    (if(null? num)
+       (eopl:error "limite alcanzado")
+       (if (> (car num) 0)
+           (if (and (eq? (- (car num) 1) 0) (null? (cdr num)))
+               '()
+               (cons (- (car num) 1) (cdr num)))
+           (cons (- base 1) (predecesor-base (cdr num) base)))
+           )))
+
+(define suma-base
+ (lambda (elem1 elem2 base)
+   (if(null? elem2)
+      elem1
+      (suma-base (sucesor-base elem1 base) (predecesor-base elem2 base) base))))
+
+
+(define resta-base
+ (lambda (elem1 elem2 base)
+   (if (null? elem2)
+       elem1
+       (predecesor-base (resta-base elem1 (predecesor-base elem2 base) base) base))))
+
+(define multi-base
+ (lambda (elem1 elem2 base)
+   (if (null? elem2 )
+       elem1
+       (suma-base elem1 (multi-base elem1 (predecesor-base elem2 base) base) base))))
+
+;******************************************************************************************
+
+
 
 ;-------------------------LISTAS---------------------------------------
 ;datatype para representar las listas
@@ -945,8 +1046,6 @@
     [input-list (items) items]))
 
 ;******************************************************************************************
-
-
 ;Pruebas
 
 ;(show-the-datatypes)
@@ -980,4 +1079,4 @@ scan&parse
 ;var A = True, c1 = circuit ( (gate G1 (not) (A)) ) in eval-circuit(c1)
 ;var A = True, B = True, c1 = circuit ( (gate G2 (and) (A B)) ) in eval-circuit(c1) 
 
-;(interpretador)
+(interpretador)
