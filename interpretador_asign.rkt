@@ -90,13 +90,13 @@
     (expression ("x16" "(" (arbno number) ")") num-hex-exp)
     (expression ("x32" "(" (arbno number) ")") num-base32-exp)
     (expression (cadena) string-exp)
-     #|
+     
  
     ; Const datos predefinidos
 
-    (expression ("list" "[" (separated-list expression ",") "]" ) list-exp)
-    (expression ("tupla" "[" (separated-list expression ";") "]" ) tupla-exp)
-    |#
+    (expression ("[" (separated-list expression ":") "]") list-exp)
+    (expression ("tupla[" (separated-list expression ":") "]") tuple-exp)
+    
 
     (expression (expr-bool) expr-bool-exp)
 
@@ -127,7 +127,7 @@
     (expression ("begin" expression (arbno ";" expression) "end") begin-exp) 
     (expression ("if" expr-bool ":" expression "else" ":" expression) if-exp) 
     (expression ("while" expr-bool "do" expression "done" ) while-exp)
-    ;(expression ("for" identifier "in" expression ":" expression) for-exp)
+    (expression ("for" identifier "in" expression "do" expression "done") for-exp)
 
     ; Registros
     
@@ -172,30 +172,32 @@
     (primitive ("*(x32)") b32-multi)
     (primitive ("add1(x32)") b32-add1)
     (primitive ("sub1(x32)") b32-sub1)
-    #|
+    
 
     ; Primitivas sobre cadenas
-    (primitive ("longitud") longitud-prim)
-    (primitive ("concatenar") concatenar-prim)
+    ;(primitive ("longitud") longitud-prim)
+    ;(primitive ("concatenar") concatenar-prim)
 
     ; Primitivas sobre listas
-    (expression ("vacio?" "(" expression ")") vacio?-exp)
-    (expression ("vacio") vacio-exp)
-    (expression ("crear-lista" "(" expression (arbno "," expression) ")" ) crear-lista-exp)
-    (expression ("lista?" "(" expression ")") list?-exp)
-    (expression ("cabeza" "(" expression ")") cabeza-exp)
-    (expression ("cola" "(" expression ")") cola-exp)
-    (expression ("append" "(" expression "," expression ")") append-exp)
-    (expression ("ref-list" "(" expression "," expression ")") ref-list-exp)
-    (expression ("set-list" "(" expression "," expression "," expression ")") set-list-exp)
+    (primitive ("vacio?") empty?-prim)
+    (primitive ("vacio") empty-prim)
+    (primitive ("crear-lista") make-list-prim)
+    (primitive ("lista?") list?-prim)
+    (primitive ("cabeza") head-prim)
+    (primitive ("cola") tail-prim)
+    (primitive ("append") append-prim)
+    (primitive ("ref-list") ref-list-prim)
+    (primitive ("set-list") set-list-prim)
 
     ; Primitivas sobre tuplas 
-    (expression ("crear-tupla" "(" expression (arbno "," expression) ")" ) crear-tupla-exp)
-    (expression ("tupla?" "(" expression ")") tupla?-exp)
-    (expression ("ref-tupla" "(" expression "," expression ")" ) ref-tupla-exp)
-    (expression ("cabeza-tupla" "(" expression ")") cabeza-tupla-exp)
-    (expression ("cola-tupla" "(" expression")") cola-tupla-exp)
-
+    (primitive ("vacio-tupla?") tuple-empty?-prim)
+    (primitive ("vacio-tupla") tuple-empty-prim)
+    (primitive ("crear-tupla") make-tuple-prim)
+    (primitive ("tupla?") tuple?-prim)
+    (primitive ("cabeza-tupla") tuple-head-prim)
+    (primitive ("cola-tupla") tuple-tail-prim)
+    (primitive ("ref-tupla") tuple-ref-prim)
+    #|
     (expression ((arbno identifier "="  expression) expression) let-exp)|#
     ; Primitivas sobre circuitos
     (primitive ("eval-circuit") eval-circuit-prim)
@@ -331,6 +333,7 @@
                   (eval-expression true-exp env)
                   (eval-expression false-exp env))
               )
+      
       (set-exp (id rhs-exp)
           (let ((val (eval-expression rhs-exp env)))
           (display val)
@@ -347,9 +350,10 @@
                         (loop (eval-expression (car exps) 
                                                env)
                               (cdr exps)))))
+      
       (expr-bool-exp (exp) 
                      (eval-exp-bool exp env))
-        
+      
       (while-exp (exp1 exp2)
                   (let loop ((test (eval-exp-bool exp1 env)))
                     (if (true-value? test)
@@ -358,6 +362,29 @@
                           (loop (eval-exp-bool exp1 env)))
                         "fin del bucle"))
                 )
+
+      (for-exp (id iterable-exp body-exp)
+        (let ((iterable (eval-expression iterable-exp env)))
+          (let ((elements (cond 
+            ((vector? iterable) (vector->list iterable))
+            ((list? iterable) iterable)
+            (else (eopl:error 'eval-expression "Iterable debe ser lista o tupla: ~s" iterable)))))
+          (if (null? elements)'()  
+            (let loop ((elements elements)
+              (last-result 'undefined))
+              (if (null? elements)
+                last-result
+                (let ((element (car elements)))
+                  (let ((new-env (extend-env (list id) (list element) env)))
+                    (loop (cdr elements) (eval-expression body-exp new-env))))))))))
+      
+      (list-exp (elements) 
+                (list->vector 
+                  (map (lambda (e) (eval-expression e env)) elements)))
+      
+      (tuple-exp (elements)
+        (map (lambda (e) (eval-expression e env)) elements))
+      
       (register-exp (campos valores)
         (if (null? campos)
             (eopl:error "Se requiere al menos un par identificador = expresión")
@@ -453,6 +480,41 @@
       (b32-add1 () (sucesor-base (car args) 32))
       (b32-sub1 () (predecesor-base (car args) 32))
 
+      ;listas
+      (empty?-prim () (zero? (vector-length (car args)))) 
+      (empty-prim () (vector)) 
+      (make-list-prim () (list->vector args))
+      (list?-prim () (vector? (car args)))
+      (head-prim () (vector-ref (car args) 0)) 
+      (tail-prim () 
+        (if (vector? (car args))
+            (list->vector (cdr (vector->list (car args)))) 
+            (eopl:error 'tail-prim "Argumento no es una lista: ~s" (car args)))) 
+      (append-prim () (vector-append (car args) (cadr args))) 
+      (ref-list-prim () (vector-ref (car args) (cadr args))) 
+      (set-list-prim () (vector-set! (car args) (cadr args) (caddr args))#t)
+
+      ;tuplas
+      (tuple-empty?-prim () 
+        (null? (car args))) 
+      (tuple-empty-prim () '()) 
+      (make-tuple-prim () args) 
+      (tuple?-prim ()(list? (car args))) ; 
+      (tuple-head-prim () 
+        (if (null? (car args))
+            (eopl:error 'cabeza-tupla "Tupla vacía")
+            (car (car args))))
+      (tuple-tail-prim () 
+        (if (null? (car args))
+            (eopl:error 'cola-tupla "Tupla vacía")
+            (cdr (car args)))) 
+      (tuple-ref-prim () 
+        (let ((tuple (car args))
+              (index (cadr args)))
+          (if (or (< index 0) (>= index (length tuple)))
+              (eopl:error 'ref-tupla "Índice inválido: ~s" index)
+              (list-ref tuple index))))
+      
       )))
 
 ;true-value?: determina si un valor dado corresponde a un valor booleano falso o verdadero
@@ -741,6 +803,11 @@
       (vec-a (values) values))
     )
   )
+
+;funcion auxiliar de vectores
+(define vector-append
+  (lambda (vec1 vec2)
+    (list->vector (append (vector->list vec1) (vector->list vec2)))))
 ;******************************************************************************************
 ;Definición de los tipos de datos para los registros
 
@@ -779,7 +846,7 @@
 
 ;(define r (crear-registro '(x y) '("edad" "años")))
 ;(display r)
-(newline)
+;(newline)
 ;******************************************************************************************
 
 ;; Funcion: eval-circuit
@@ -1053,7 +1120,7 @@ just-scan
 scan&parse
 ;(display (scan&parse "ref-registro({x = 10; y = 20}, x)"))
 ;(display (show-the-datatypes))
-(newline)
+;(newline)
 ;== (3, 3)             ; ⇒ #t
 ;!= (3, 4)              ; ⇒ #t
 ;> (5, 2)            ; ⇒ #t
