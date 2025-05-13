@@ -45,7 +45,7 @@
   (comment
    ("//" (arbno (not #\newline))) skip)
   (identifier
-   (letter (arbno (or letter digit "?"))) symbol)
+   (letter (arbno (or letter digit "_"))) symbol)
   (number
    (digit (arbno digit)) number)
   (number
@@ -97,16 +97,15 @@
     (expression ("tupla" "[" (separated-list expression ";") "]" ) tupla-exp)
     |#
 
-    ; Registros
-    
-    (expression ("{" (separated-list identifier "=" expression ";") "}") register-exp)
-
     (expression (expr-bool) expr-bool-exp)
 
     (expr-bool (pred-prim "(" expression "," expression ")") pred-exp-bool)
     (expr-bool (oper-bin-bool "(" expr-bool "," expr-bool ")") binop-exp-bool)
     (expr-bool (oper-un-bool "(" expr-bool ")") unop-exp-bool)
-    (expr-bool (bool) bool-exp)
+    (expr-bool (bool) bool-expr)
+
+    (bool ("True") true-bool)
+    (bool ("False") false-bool)
 
     ; pred-prim
     (pred-prim (">") mayor-exp)
@@ -121,9 +120,7 @@
     ; oper-un-bool
     (oper-un-bool ("not") not-prim)
 
-    (bool ("True") true-bool)
-    (bool ("False") false-bool)
-
+  
     ; Estructuras de control
 
     (expression ("begin" expression (arbno ";" expression) "end") begin-exp) 
@@ -131,6 +128,21 @@
     (expression ("while" expr-bool "do" expression "done" ) while-exp)
     ;(expression ("for" identifier "in" expression ":" expression) for-exp)
 
+    ; Registros
+    
+    (expression ("{" (separated-list identifier "=" expression ";") "}") register-exp)
+
+    ; Primitivas sobre registros
+    ;(expression ("registros?" "(" expression ")") is-registro-exp)
+    ;(expression ("crear-registro" "(" (separated-list identifier "=" expression ";")  ")") crear-registro-exp)
+    ;(expression ("ref-registro" "(" expression "," expression ")") ref-registro-exp)
+    ;(expression ("set-registro" "(" expression "," expression "," expression ")") set-registro-exp)
+
+    (primitive ("registros?")  is-registro-prim)
+    (primitive ("crear-registro")  crear-registro-prim)
+    (primitive ("ref-registro")  ref-registro-prim)
+    (primitive ("set-registro")  set-registro-prim)
+    
     ; enteros
     (primitive ("+") add-prim)
     (primitive ("-") substract-prim)
@@ -182,13 +194,7 @@
     (expression ("cabeza-tupla" "(" expression ")") cabeza-tupla-exp)
     (expression ("cola-tupla" "(" expression")") cola-tupla-exp)
 
-    ; Primitivas sobre registros
-    (expression ("registros?" "(" expression ")") registro?-exp)
-    (expression ("crear-registro" "(" identificador "=" expression (arbno "," identificador "=" expression) ")" )
-                crear-registro-exp)
-    (expression ("ref-registro" "(" expression "," expression")") ref-registro-exp)
-    (expression ("set-registro" "(" expression "," expression "," expression")") set-registro-exp)
-
+    (expression ((arbno identifier "="  expression) expression) let-exp)|#
     ; Primitivas sobre circuitos
     (primitive ("eval-circuit") eval-circuit-prim)
     (primitive ("connect-circuits") cons-circuit-prim)
@@ -196,7 +202,6 @@
 
     ; Circuitos  
     (expression (circuit-exp) exp-circuit)
-    (expression (type-op) ty-op)
     (type ("(" type-op ")" ) type-exp)
     (type-op ("and") and-op)
     (type-op ("or") or-op)
@@ -207,8 +212,7 @@
     (gate ("(" "gate" identifier  type input_list ")") a-gate)
     (input_list ("(" (arbno input-item) ")" ) input-list)
     (input-item (bool) bool-input)
-    (input-item (identifier) id-input) |#
-
+    (input-item (identifier) id-input) 
     ; Imprimir
     (expression ("print" "(" expression ")") print-exp)
 
@@ -269,7 +273,7 @@
 (define init-env
   (lambda ()
     (extend-env
-     '(x y z)
+     '(x v c)
      '(3 5 10)
      (empty-env))))
 
@@ -282,12 +286,21 @@
       (id-exp (id) (apply-env env id))
       (string-exp (s) s)
       (primapp-exp (prim rands)
-      ;(prim)
-                   (let ((args (eval-rands rands env)))
-                     (apply-primitive prim args)))
+          (cases primitive prim
+          (cons-circuit-prim ()
+            (apply-primitive prim rands env))
+          (merge-circuit-prim ()
+            (apply-primitive prim rands env))
+          (crear-registro-prim ()
+            (apply-primitive prim rands env))
+          (ref-registro-prim ()
+            (apply-primitive prim rands env))
+          (else
+            (let ((args (eval-rands rands env)))
+              (apply-primitive prim args env)))))
       ; Definiciones
       (var-exp (vars rands body)
-               (let ((args (eval-rands rands env)))
+               (let ((args (eval-rands rands env))) 
                  (eval-expression body (extended-env-record vars (list->vector args) env))))
 
       (const-exp (ids rands body)
@@ -328,8 +341,15 @@
                           (loop (eval-exp-bool exp1 env)))
                         "fin del bucle"))
                 )
-      (register-exp (key value)
-            (crear-registro key value))
+      (register-exp (campos valores)
+        (if (null? campos)
+            (eopl:error "Se requiere al menos un par identificador = expresión")
+            (let* ((valores-evaluados (map (lambda (v) (eval-expression v env)) valores))
+                   (nuevo-env (extend-env campos valores-evaluados env)))
+              (crear-registro campos valores-evaluados))))
+        
+
+      (exp-circuit (gate_list) gate_list)
       (print-exp (exp)
             (begin (display (eval-expression exp env))
               (newline) "fin del print"
@@ -348,7 +368,7 @@
 
 ;apply-primitive: <primitiva> <list-of-expression> -> numero
 (define apply-primitive
-  (lambda (prim args)
+  (lambda (prim args env)
     (cases primitive prim
       (add-prim () (+ (car args) (cadr args)))
       (substract-prim () (- (car args) (cadr args)))
@@ -356,14 +376,51 @@
       (div-prim () (/(car args) (cadr args)))
       (mod-prim () (modulo (car args) (cadr args)))
       (incr-prim () (+ (car args) 1))
-      (decr-prim () (- (car args) 1)))))
+      (decr-prim () (- (car args) 1))
+      (eval-circuit-prim () (eval-circuit (car args) env))
+      (cons-circuit-prim ()
+        (let* ((c1 (eval-expression (car args) env))
+               (c2 (eval-expression (cadr args) env))
+               (input-id (cases expression (caddr args)
+                           (id-exp (id) id)
+                           (num-exp (datum) datum)
+                           (else (eopl:error 'connect-circuits 
+                                            "Tercer parametro no es un identificador")))))
+          (connect-circuits c1 c2 input-id env)))
+      (merge-circuit-prim ()
+        (let* ((c1 (eval-expression (car args) env))
+               (c2 (eval-expression (cadr args) env))
+               (ty-op (eval-expression (caddr args) env))
+               (out-id (cases expression (cadddr args)
+                         (id-exp (id) id)
+                         (num-exp (datum) datum)
+                         (else (eopl:error 'merge-circuits 
+                                          "Cuarto parámetro no es un identificador")))))
+          (merge-circuits c1 c2 ty-op out-id env)))
+ 
+      (is-registro-prim ()
+            (registro? (car args)))
+      (crear-registro-prim ()
+        (let ((arg (eval-expression (car args) env)))
+          (if (registro? arg)
+              arg
+              (eopl:error 'crear-registro-prim "El argumento no es válido para crear un registro"))))
+      (ref-registro-prim ()
+  (let* ((reg (eval-expression (car args) env))
+         (key (eval-expression (cadr args) env)))
+    (if (symbol? key)
+        (ref-registro reg key)
+        (eopl:error 'ref-registro-prim "El segundo argumento debe ser un símbolo"))))
+      (set-registro-prim ()
+            (set-registro (eval-expression (car args) env)
+                              (eval-expression (cadr args) env)
+                              (eval-expression (caddr args) env)))
+    )))
 
 ;true-value?: determina si un valor dado corresponde a un valor booleano falso o verdadero
 (define true-value?
   (lambda (x)
     (eq? x #t)))
-
-
 ;*******************************************************************************************
 ;Procedimientos
 (define-datatype procval procval?
@@ -379,11 +436,13 @@
       (closure (ids body env)
                (eval-expression body (extend-env ids args env))))))
 
+(define-datatype expval expval?
+  (num-val (n number?))          ; Para valores numéricos
+  (bool-val (b boolean?))        ; Para valores booleanos
+  (string-val (s string?))       ; Para cadenas
+  (registro-val (r registro?)))  ; Para registros
 
-(define expval?
-  (lambda (x)
-    (or (number? x) (procval? x) (string? x) (list? x) (vector? x))))
-;
+
 (define ref-to-direct-target?
   (lambda (x)
     (and (reference? x)
@@ -486,6 +545,7 @@
       (a-ref (pos vec)
             (vector-set! vec pos val)))))
 
+
 ;****************************************************************************************
 ;Funciones Auxiliares
 
@@ -529,11 +589,15 @@
       ((lookup-bool-unop op)
        (eval-exp-bool b env)))
 
-    (bool-exp (b)
-      (cases bool b
-        (true-bool () #t)
-        (false-bool () #f)))
-    ))
+    (bool-expr (b) 
+      (eval-bool b))
+      ))
+
+(define (eval-bool bool-d)
+  (cases bool bool-d
+    [true-bool () #t]
+    [false-bool () #f]))
+
 
 (define (lookup-prim prim)
   (cases pred-prim prim
@@ -552,8 +616,6 @@
 (define (lookup-bool-unop op)
   (cases  oper-un-bool op
     (not-prim () (lambda (x) (not x)))))
-
-
 
 ;-------------------------LISTAS---------------------------------------
 ;datatype para representar las listas
@@ -584,8 +646,7 @@
 (define-datatype registro registro?
   (reg-a 
    (keys (list-of symbol?))    ; Lista de identificadores
-   (values vector?))
-)
+   (values vector?))) ; Vector de valores
 
 (define crear-registro
   (lambda (keys values)
@@ -593,11 +654,7 @@
         (eopl:error "Las claves deben ser una lista de identificadores")
         (if (not (list? values))
             (eopl:error "Los valores deben ser una lista")
-            (let ((k keys)
-                  (values1 (list->vector values)))
-              (if (and (null? k) (= (vector-length values1) 0))
-                  (eopl:error "Se requiere al menos un par identificador=expresión")
-                  (reg-a k values1)))))))
+            (reg-a keys (list->vector values))))))
 
 (define ref-registro
   (lambda (reg key)
@@ -615,17 +672,288 @@
              (let ((pos (rib-find-position key keys)))
                (if (number? pos)
                    (begin
-                     (setref! (a-ref pos values) value)
+                     (setref! (a-ref pos (list->vector values)) value)
                      value)
                    (eopl:error "No existe el identificador")))))))
+
+;(define r (crear-registro '(x y) '("edad" "años")))
+;(display r)
+(newline)
 ;******************************************************************************************
+
+;; Funcion: eval-circuit
+;; Proposito: Evalua un circuito lógico completo, comenzando con la primera compuerta.
+;; Parametros:
+;;   circuito: Representación del circuito (estructura tipo a-circuit).
+;;   env: Entorno de variables (alist con pares (variable . valor)).
+;; Retorno: Valor booleano de la última compuerta evaluada.
+
+(define (eval-circuit circuito env)
+  (cases circuit-exp circuito
+    [a-circuit (gate)
+      (cases gate_list gate
+        [agate-list (gates) (eval-gate-list gates env)])]))
+
+;; Funcion: eval-gate-list
+;; Proposito: Evalúa una lista de compuertas lógicas secuencialmente, actualizando el entorno.
+;; Parametros:
+;;   gates: Lista de compuertas lógicas.
+;;   env: Entorno de variables.
+;; Retorno: Resultado booleano de la última compuerta evaluada.
+
+(define (eval-gate-list gates env)
+  (cond
+    [(null? gates) '()]
+    [else
+     (let* ([result (eval-gate (car gates) env)]
+            [id     (car result)]
+            [value  (cadr result)]
+            [new-env (extend-env (list id) (list value) env)])
+       (if (null? (cdr gates))
+           value
+           (eval-gate-list (cdr gates) new-env)))]))
+
+;; Funcion: eval-gate
+;; Proposito: Evalúa una compuerta lógica individual usando el tipo de operación lógica correspondiente.
+;; Parametros:
+;;   g: Compuerta lógica a evaluar.
+;;   env: Entorno actual de variables.
+;; Retorno: Lista con el identificador de la compuerta y su valor evaluado.
+
+(define (eval-gate g env)
+  (cases gate g
+    [a-gate (id t input-lst)
+      (cases type t
+        [type-exp (t-op)
+          (let ([args (eval-input-list input-lst env)])
+            (list id
+              (cases type-op t-op
+                [and-op () (applied-logic and-fn args)]
+                [or-op  () (applied-logic or-fn args)]
+                [xor-op () (multi-xor args)]
+                [not-op () (not (car args))])))])]))
+
+;; Funcion: applied-logic
+;; Proposito: Aplica una función lógica binaria (como AND u OR) a una lista de argumentos.
+;; Parametros:
+;;   op: Función lógica (como and-fn u or-fn).
+;;   lst: Lista de booleanos a combinar.
+;; Retorno: Resultado booleano de aplicar la función a todos los elementos.
+
+(define (applied-logic op lst)
+  (cond
+    [(null? lst) (if (eq? op not) '() #f)]
+    [(null? (cdr lst)) (op (car lst) (car lst))]
+    [else (op (car lst) (applied-logic op (cdr lst)))]))
+
+;; Funcion: eval-input-list
+;; Proposito: Evalúa una lista de entradas (inputs) a una compuerta.
+;; Parametros:
+;;   inputl: Lista de entradas (estructura input-list).
+;;   env: Entorno de variables.
+;; Retorno: Lista de valores booleanos evaluados.
+
+(define (eval-input-list inputl env)
+  (cases input_list inputl
+    [input-list (items) (eval-items items env)]))
+
+;; Funcion: eval-items
+;; Proposito: Evalúa recursivamente una lista de entradas.
+;; Parametros:
+;;   items: Lista de entradas (input-item).
+;;   env: Entorno de variables.
+;; Retorno: Lista de valores booleanos.
+
+(define (eval-items items env)
+  (if (null? items)
+      '()
+      (cons (eval-item (car items) env)
+            (eval-items (cdr items) env))))
+
+;; Funcion: eval-item
+;; Proposito: Evalúa una entrada individual: puede ser literal booleana o una variable.
+;; Parametros:
+;;   item: Elemento de entrada (input-item).
+;;   env: Entorno de variables.
+;; Retorno: Valor booleano correspondiente.
+
+(define (eval-item item env)
+  (cases input-item item
+    [bool-input (bool) (eval-bool bool)]
+    [id-input (id) (apply-env env id)]))
+
+;; Funcion: and-fn
+;; Proposito: Función auxiliar que implementa la operación lógica AND.
+;; Parametros: a, b: booleanos.
+;; Retorno: a AND b.
+
+(define (and-fn a b)
+  (and a b))
+
+;; Funcion: or-fn
+;; Proposito: Función auxiliar que implementa la operación lógica OR.
+;; Parametros: a, b: booleanos.
+;; Retorno: a OR b.
+
+(define (or-fn a b)
+  (or a b))
+
+;; Funcion: multi-xor
+;; Proposito: Evalúa una operación XOR múltiple sobre una lista de booleanos.
+;; Parametros:
+;;   lst: Lista de valores booleanos.
+;; Retorno: #t si hay un número impar de verdaderos; #f en caso contrario.
+
+(define (multi-xor lst)
+  (define (count-trues lst)
+    (if (null? lst)
+        0
+        (+ (if (car lst) 1 0)
+           (count-trues (cdr lst)))))
+  (odd? (count-trues lst)))
+
+;; Funcion: last
+;; Proposito: Devuelve el último elemento de una lista.
+;; Parametros:
+;;   lst: Lista no vacía.
+;; Retorno: Último elemento de la lista.
+
+(define (last lst)
+  (cond
+    [(null? lst) (eopl:error 'last "lista vacía")]
+    [(null? (cdr lst)) (car lst)]
+    [else (last (cdr lst))]))
+
+;; Funcion: connect-circuits
+;; Proposito: Conecta dos circuitos reemplazando una entrada en el segundo con la salida del primero.
+;; Parametros:
+;;   c1: Primer circuito.
+;;   c2: Segundo circuito.
+;;   input-to-replace: Identificador a reemplazar.
+;;   env: Entorno (no usado aquí).
+;; Retorno: Nuevo circuito con las compuertas de c1 y c2 conectadas.
+
+(define (connect-circuits c1 c2 input-to-replace env)
+  (let* ([gates1 (extract-gates c1)]
+         [last-id (gate-id (last gates1))]
+         [gates2 (update-gates (extract-gates c2) input-to-replace last-id)])
+    (make-circuit (append gates1 gates2))))
+
+;; Funcion: extract-gates
+;; Proposito: Extrae la lista de compuertas desde una estructura de circuito.
+;; Parametros:
+;;   circuit: Circuito lógico (estructura tipo a-circuit).
+;; Retorno: Lista de compuertas.
+
+(define (extract-gates circuit)
+  (cases circuit-exp circuit
+    [a-circuit (glist)
+      (cases gate_list glist
+        [agate-list (gates) gates])]))
+
+;; Funcion: update-gates
+;; Proposito: Actualiza las entradas de compuertas para reemplazar un identificador específico.
+;; Parametros:
+;;   gates: Lista de compuertas.
+;;   target-id: Identificador a reemplazar.
+;;   replacement-id: Identificador nuevo.
+;; Retorno: Lista de compuertas actualizadas.
+
+(define (update-gates gates target-id replacement-id)
+  (map (lambda (g)
+        (cases gate g
+          [a-gate (id ty inputs)
+            (a-gate id ty (update-inputs inputs target-id replacement-id))]))
+      gates))
+
+;; Funcion: update-inputs
+;; Proposito: Actualiza los identificadores de entrada dentro de una estructura input-list.
+;; Parametros:
+;;   inputs: Lista de entradas (input-list).
+;;   target-id: Identificador a reemplazar.
+;;   replacement-id: Nuevo identificador.
+;; Retorno: input-list con las entradas actualizadas.
+
+(define (update-inputs inputs target-id replacement-id)
+  (input-list
+   (map (lambda (inp)
+          (cases input-item inp
+            [bool-input (b) inp]
+            [id-input (id)
+              (if (eqv? id target-id)
+                  (id-input replacement-id)
+                  inp)]))
+        (input-list-items inputs))))
+
+;; Funcion: merge-circuits
+;; Proposito: Une dos circuitos y agrega una compuerta lógica que conecta ambas salidas.
+;; Parametros:
+;;   c1, c2: Circuitos a unir.
+;;   typ-op: Operación lógica para la nueva compuerta (and-op, or-op, etc).
+;;   out-id: Identificador de salida de la nueva compuerta.
+;;   env: Entorno (no usado aquí).
+;; Retorno: Nuevo circuito que representa la unión de c1 y c2 conectados mediante typ-op.
+
+(define (merge-circuits c1 c2 typ-op out-id env)
+  (let* ([gates1 (extract-gates c1)]
+         [gates2 (extract-gates c2)]
+         [last-id1 (gate-id (last gates1))]
+         [last-id2 (gate-id (last gates2))]
+         [new-gate (create-merged-gate typ-op out-id last-id1 last-id2)])
+    (make-circuit (append gates1 gates2 (list new-gate)))))
+
+;; Funcion: create-merged-gate
+;; Proposito: Crea una nueva compuerta lógica que conecta dos identificadores.
+;; Parametros:
+;;   typ-op: Tipo de operación lógica.
+;;   out-id: Identificador de salida.
+;;   in1, in2: Identificadores de entrada.
+;; Retorno: Compuerta lógica (estructura a-gate).
+
+(define (create-merged-gate typ-op out-id in1 in2)
+  (a-gate out-id
+          (type-exp typ-op)
+          (input-list (list (id-input in1) (id-input in2)))))
+
+;; Funcion: gate-id
+;; Proposito: Extrae el identificador de una compuerta lógica.
+;; Parametros:
+;;   g: Compuerta (estructura a-gate).
+;; Retorno: Identificador de la compuerta.
+
+(define (gate-id g)
+  (cases gate g
+    [a-gate (id type inputs) id]))  
+
+;; Funcion: make-circuit
+;; Proposito: Construye una estructura de circuito a partir de una lista de compuertas.
+;; Parametros:
+;;   gates: Lista de compuertas.
+;; Retorno: Circuito (estructura a-circuit).
+
+(define (make-circuit gates)
+  (a-circuit (agate-list gates)))
+
+;; Funcion: input-list-items
+;; Proposito: Extrae la lista de entradas desde una estructura input-list.
+;; Parametros:
+;;   il: input-list.
+;; Retorno: Lista de entradas (input-item).
+
+(define (input-list-items il)
+  (cases input_list il
+    [input-list (items) items]))
+
+;******************************************************************************************
+
 
 ;Pruebas
 
-(show-the-datatypes)
+;(show-the-datatypes)
 just-scan
 scan&parse
-
+;(display (scan&parse "ref-registro({x = 10; y = 20}, x)"))
+;(display (show-the-datatypes))
 (newline)
 ;== (3, 3)             ; ⇒ #t
 ;!= (3, 4)              ; ⇒ #t
@@ -643,18 +971,13 @@ scan&parse
 
 ;while and (> (x , 0) , < (x , 10)) do set x =-(x,1) done 
 
-(define mi-registro (crear-registro '(x y) '(4 7)))
+; Crear un registro
+;crear-registro(x = 42; y = True; mensaje = "hola")
+;registros?(crear-registro(a = 1))
 
-(display(ref-registro mi-registro 'x)) ; Resultado: 4
-(newline)
-(display(ref-registro mi-registro 'y)) ; Resultado: 7
+; crear-registro(x = 10; y = 20)
 
-(set-registro mi-registro 'x 10)        ; Cambia el valor de 'x' a 10
-(newline)
-(display (ref-registro mi-registro 'x)) ; Resultado: 10
-(newline)
-
-(display (ref-registro mi-registro 'y)) ; Resultado: 7 (sin cambios)
-(newline)
+;var A = True, c1 = circuit ( (gate G1 (not) (A)) ) in eval-circuit(c1)
+;var A = True, B = True, c1 = circuit ( (gate G2 (and) (A B)) ) in eval-circuit(c1) 
 
 ;(interpretador)
