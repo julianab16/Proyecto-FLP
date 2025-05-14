@@ -81,6 +81,7 @@
                 const-exp)
     (expression ("rec" (arbno identifier "(" (separated-list identifier ",") ")" "=" expression)  "in" expression) 
                 rec-exp)
+
     
     ; Datos
     (expression (number) num-exp)
@@ -307,6 +308,8 @@
             (apply-primitive prim rands env))
           (ref-registro-prim ()
             (apply-primitive prim rands env))
+          (set-registro-prim ()
+            (apply-primitive prim rands env))
           (else
             (let ((args (eval-rands rands env)))
               (apply-primitive prim args env)))))
@@ -455,15 +458,24 @@
               arg
               (eopl:error 'crear-registro-prim "El argumento no es válido para crear un registro"))))
       (ref-registro-prim ()
-      (let* ((reg (eval-expression (car args) env))
-            (key (eval-expression (cadr args) env)))
-        (if (symbol? key)
-            (ref-registro reg key)
-            (eopl:error 'ref-registro-prim "El segundo argumento debe ser un símbolo"))))
+        (let* ((arg (eval-expression (car args) env))
+              (id (cases expression (cadr args)
+                         (id-exp (id) id)
+                         (else (eopl:error 'ref-registro-prim 
+                                          "Segundo parámetro no es un identificador")))))
+          (if (registro? arg)
+              (ref-registro arg id)
+              (eopl:error 'ref-registro-prim "El primer argumento no es un registro"))))
       (set-registro-prim ()
-            (set-registro (eval-expression (car args) env)
-                              (eval-expression (cadr args) env)
-                              (eval-expression (caddr args) env)))
+            (let* ((arg (eval-expression (car args) env))
+                    (id (cases expression (cadr args)
+                         (id-exp (id) id)
+                         (else (eopl:error 'set-registro-prim 
+                                          "Segundo parámetro no es un identificador"))))
+                    (val (eval-expression (caddr args) env)))
+          (if (registro? arg)
+              (set-registro arg id val)
+              (eopl:error 'ref-registro-prim "El primer argumento no es un registro"))))
       ; base octal
       (oct-suma () (suma-base (car args) (cadr args) 8))
       (oct-resta () (resta-base (car args) (cadr args) 8))
@@ -785,33 +797,8 @@
        elem1
        (suma-base elem1 (multi-base elem1 (predecesor-base elem2 base) base) base))))
 
-;******************************************************************************************
-
-
 
 ;-------------------------LISTAS---------------------------------------
-;datatype para representar las listas
-
-
-;extract-values-list <lista> -> <list>
-;Funcion que extrae la list de valores de un datatype lista
-
-;-------------------------VECTORES---------------------------------
-;datatype para representar vectores
-(define-datatype vec vec?
-  (empty-vec)
-  (vec-a (values vector?))
-  )
-
-;extract-values-vec <vec> -> <vector>
-;Funcion que extrae el vector de valores de un datatype vec
-(define extract-values-vec
-  (lambda (vector)
-    (cases vec vector
-      (empty-vec()( #() ))
-      (vec-a (values) values))
-    )
-  )
 
 ;funcion auxiliar de vectores
 (define vector-append
@@ -849,7 +836,7 @@
              (let ((pos (rib-find-position key keys)))
                (if (number? pos)
                    (begin
-                     (setref! (a-ref pos (list->vector values)) value)
+                     (setref! (a-ref pos values) value)
                      value)
                    (eopl:error "No existe el identificador")))))))
 
@@ -1151,8 +1138,11 @@ scan&parse
 ;registros?(crear-registro(a = 1))
 
 ; crear-registro(x = 10; y = 20)
-
+; set-registro(crear-registro({x = 1; y = 2}), x, 5)
 ;var A = True, c1 = circuit ( (gate G1 (not) (A)) ) in eval-circuit(c1)
 ;var A = True, B = True, c1 = circuit ( (gate G2 (and) (A B)) ) in eval-circuit(c1) 
 
+;var r = crear-registro({a = 1; b = 2; c = 3}) in
+;begin set-registro(r, b, 42); ref-registro(r, b) end
+;
 (interpretador)
