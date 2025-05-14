@@ -79,10 +79,8 @@
                 var-exp)
     (expression ("const" (separated-list identifier "=" expression ",") "in" expression)
                 const-exp)
-
-    
-    #| (expression ("rec" (separated-list (identifier "(" (separated-list identifier ",") ")" "=" expression) ",") "in" expression)
-                letrec-exp) |#
+    (expression ("rec" (arbno identifier "(" (separated-list identifier ",") ")" "=" expression)  "in" expression) 
+                rec-exp)
     
     ; Datos
     (expression (number) num-exp)
@@ -175,8 +173,8 @@
     
 
     ; Primitivas sobre cadenas
-    ;(primitive ("longitud") longitud-prim)
-    ;(primitive ("concatenar") concatenar-prim)
+    (primitive ("longitud") longitud-prim)
+    (primitive ("concatenar") concatenar-prim)
 
     ; Primitivas sobre listas
     (primitive ("vacio?") empty?-prim)
@@ -298,7 +296,7 @@
       (num-hex-exp (number) number)
       (num-base32-exp (number) number)
       (id-exp (id) (apply-env env id))
-      (string-exp (s) s)
+
       (primapp-exp (prim rands)
           (cases primitive prim
           (cons-circuit-prim ()
@@ -326,6 +324,13 @@
                 (let ((args (map (lambda (x) (const-target (eval-expression x env))) rands)))
                    (eval-expression body (extended-env-record ids (list->vector args) env))))
 
+      (rec-exp (proc-names idss bodies rec-body)
+                  (eval-expression rec-body
+                                   (extend-env-recursively proc-names idss bodies env)))
+
+      ; Datos
+      (string-exp (cadena) (substring cadena 1 (- (string-length cadena) 1)))
+      
       
       (if-exp (test-exp true-exp false-exp)
               (true-value? (eval-exp-bool test-exp env))
@@ -514,6 +519,10 @@
           (if (or (< index 0) (>= index (length tuple)))
               (eopl:error 'ref-tupla "Índice inválido: ~s" index)
               (list-ref tuple index))))
+
+      ; Primitivas cadenas
+      (concatenar-prim () (string-append (car args) (cadr args)))
+      (longitud-prim () (string-length (car args)))
       
       )))
 
