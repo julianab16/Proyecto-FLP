@@ -55,8 +55,8 @@
    (digit (arbno digit) "." digit (arbno digit)) number)
   (number
    ("-" digit (arbno digit) "." digit (arbno digit)) number)
-  (cadena (#\" any (arbno (not #\")) #\") string)
-  ))
+   (cadena
+   ("\"" (arbno (not #\")) "\"") string)))
 
 ;******************************************************************************************
 
@@ -72,6 +72,7 @@
 
     ; Primitivas
     (expression (primitive "(" (separated-list expression ",") ")") primapp-exp)
+    (expression ( "(" expression primitive-n expression ")") primapp-num-exp)
 
     ; Definiciones
 
@@ -119,7 +120,6 @@
     (oper-bin-bool ("or") or-prim)
     ; oper-un-bool
     (oper-un-bool ("not") not-prim)
-
   
     ; Estructuras de control
 
@@ -130,25 +130,19 @@
 
     ; Registros
     
-    (expression ("{" (separated-list identifier "=" expression ";") "}") register-exp)
-
-    ; Primitivas sobre registros
-    ;(expression ("registros?" "(" expression ")") is-registro-exp)
-    ;(expression ("crear-registro" "(" (separated-list identifier "=" expression ";")  ")") crear-registro-exp)
-    ;(expression ("ref-registro" "(" expression "," expression ")") ref-registro-exp)
-    ;(expression ("set-registro" "(" expression "," expression "," expression ")") set-registro-exp)
+    (expression ("{" (separated-list expression "=" expression ";") "}") register-exp)
 
     (primitive ("registros?")  is-registro-prim)
-    (primitive ("crear-registro")  crear-registro-prim)
-    (primitive ("ref-registro")  ref-registro-prim)
-    (primitive ("set-registro")  set-registro-prim)
+    (primitive ("crearRegistro")  crear-registro-prim)
+    (primitive ("refRegistro")  ref-registro-prim)
+    (primitive ("setRegistro")  set-registro-prim)
     
     ; enteros
-    (primitive ("+") add-prim)
-    (primitive ("-") substract-prim)
-    (primitive ("*") mult-prim)
-    (primitive ("/") div-prim)
-    (primitive ("%") mod-prim)
+    (primitive-n ("+") add-prim)
+    (primitive-n ("-") substract-prim)
+    (primitive-n ("*") mult-prim)
+    (primitive-n ("/") div-prim)
+    (primitive-n ("%") mod-prim)
     (primitive ("add1") incr-prim)
     (primitive ("sub1") decr-prim)
 
@@ -199,9 +193,9 @@
     #|
     (expression ((arbno identifier "="  expression) expression) let-exp)|#
     ; Primitivas sobre circuitos
-    (primitive ("eval-circuit") eval-circuit-prim)
-    (primitive ("connect-circuits") cons-circuit-prim)
-    (primitive ("merge-circuits") merge-circuit-prim)
+    (primitive ("evalCircuit") eval-circuit-prim)
+    (primitive ("connectCircuits") cons-circuit-prim)
+    (primitive ("mergeCircuits") merge-circuit-prim)
 
     ; Circuitos  
     (expression (circuit-exp) exp-circuit)
@@ -212,7 +206,7 @@
     (type-op ("xor") xor-op)
     (circuit-exp ( "circuit" gate_list) a-circuit)
     (gate_list ("(" (separated-list gate ";") ")" ) agate-list)
-    (gate ("(" "gate" identifier  type input_list ")") a-gate)
+    (gate ("(" "gate" identifier type input_list ")") a-gate)
     (input_list ("(" (arbno input-item) ")" ) input-list)
     (input-item (bool) bool-input)
     (input-item (identifier) id-input) 
@@ -297,7 +291,12 @@
       (num-hex-exp (number) number)
       (num-base32-exp (number) number)
       (id-exp (id) (apply-env env id))
-      (string-exp (s) s)
+      (string-exp (cadena) (substring cadena 1 (- (string-length cadena) 1)))
+      (primapp-num-exp (exp prim exps)
+        (let ((arg (eval-expression exp env))
+              (args (eval-expression exps env)))
+          (apply-prim-num prim arg args env)))
+
       (primapp-exp (prim rands)
           (cases primitive prim
           (cons-circuit-prim ()
@@ -389,16 +388,25 @@
       (register-exp (campos valores)
         (if (null? campos)
             (eopl:error "Se requiere al menos un par identificador = expresión")
-            (let* ((valores-evaluados (map (lambda (v) (eval-expression v env)) valores))
-                   (nuevo-env (extend-env campos valores-evaluados env)))
-              (crear-registro campos valores-evaluados))))
+            (let* (
+                   ;; Convierte cada campo a símbolo si es un id-exp
+                   (campos-simbolos (map (lambda (c)
+                                           (cases expression c
+                                             (id-exp (id) id)
+                                              (string-exp (cadena) (substring cadena 1 (- (string-length cadena) 1)))
+                                             (else (eopl:error 'register-exp "Campo no es un identificador: ~s" c))))
+                                         campos))
+                   (valores-evaluados (map (lambda (v) (eval-expression v env)) valores)))
+              (crear-registro campos-simbolos valores-evaluados))))
         
 
       (exp-circuit (gate_list) gate_list)
       (print-exp (exp)
-            (begin (display (eval-expression exp env))
-              (newline) "fin del print"
-                  ))
+          (let ((val (eval-expression exp env)))
+            (display val)
+            (newline)
+            'fin))
+      (else (eopl:error 'eval-expression "Expresión desconocida: ~s" exp))
     )))
 
 ; funciones auxiliares para aplicar eval-expression a cada elemento de una 
@@ -411,15 +419,20 @@
   (lambda (rand env)
     (eval-expression rand env)))
 
+(define apply-prim-num
+  (lambda (prim arg args env)
+    (cases primitive-n prim
+      (add-prim () (+ arg args))
+      (substract-prim () (- arg args))
+      (mult-prim () (* arg args))
+      (div-prim () (/ arg args))
+      (mod-prim () (modulo arg args))
+      )))
+
 ;apply-primitive: <primitiva> <list-of-expression> -> numero
 (define apply-primitive
   (lambda (prim args env)
     (cases primitive prim
-      (add-prim () (+ (car args) (cadr args)))
-      (substract-prim () (- (car args) (cadr args)))
-      (mult-prim () (* (car args) (cadr args)))
-      (div-prim () (/(car args) (cadr args)))
-      (mod-prim () (modulo (car args) (cadr args)))
       (incr-prim () (+ (car args) 1))
       (decr-prim () (- (car args) 1))
       (eval-circuit-prim () (eval-circuit (car args) env))
@@ -446,23 +459,25 @@
       (is-registro-prim ()
             (registro? (car args)))
       (crear-registro-prim ()
-        (let ((arg (eval-expression (car args) env)))
-          (if (registro? arg)
-              arg
-              (eopl:error 'crear-registro-prim "El argumento no es válido para crear un registro"))))
+        (let* ((keys (eval-expression (car args) env) )
+              (values (eval-expression (cadr args) env) ))
+          (crear-registro (vector->list keys) (vector->list values))))
+
       (ref-registro-prim ()
         (let* ((arg (eval-expression (car args) env))
-              (id (cases expression (cadr args)
+              (i (cases expression (cadr args)
                          (id-exp (id) id)
+                         (string-exp (cadena) (substring cadena 1 (- (string-length cadena) 1)))
                          (else (eopl:error 'ref-registro-prim 
                                           "Segundo parámetro no es un identificador")))))
           (if (registro? arg)
-              (ref-registro arg id)
+              (ref-registro arg i)
               (eopl:error 'ref-registro-prim "El primer argumento no es un registro"))))
       (set-registro-prim ()
             (let* ((arg (eval-expression (car args) env))
                     (id (cases expression (cadr args)
                          (id-exp (id) id)
+                         (string-exp (cadena) (substring cadena 1 (- (string-length cadena) 1)))
                          (else (eopl:error 'set-registro-prim 
                                           "Segundo parámetro no es un identificador"))))
                     (val (eval-expression (caddr args) env)))
@@ -546,23 +561,6 @@
       (closure (ids body env)
                (eval-expression body (extend-env ids args env))))))
 
-(define-datatype expval expval?
-  (num-val (n number?))          ; Para valores numéricos
-  (bool-val (b boolean?))        ; Para valores booleanos
-  (string-val (s string?))       ; Para cadenas
-  (registro-val (r registro?)))  ; Para registros
-
-
-(define ref-to-direct-target?
-  (lambda (x)
-    (and (reference? x)
-         (cases reference x
-           (a-ref (pos vec)
-                  (cases target (vector-ref vec pos)
-                    (direct-target (v) #t)
-                    (const-target (v) #t)
-                    (indirect-target (v) #f)))))))
-
 ;*******************************************************************************************
 ;Ambientes
 
@@ -631,6 +629,21 @@
 ;*******************************************************************************************
 ;Referencias
 
+
+(define expval?
+  (lambda (x)
+    (or (number? x) (procval? x)  (string? x) (boolean? x))))
+
+(define ref-to-direct-target?
+  (lambda (x)
+    (and (reference? x)
+         (cases reference x
+           (a-ref (pos vec)
+                  (cases target (vector-ref vec pos)
+                    (direct-target (v) #t)
+                    (const-target (v) #t)
+                    (indirect-target (v) #f)))))))
+
 (define-datatype reference reference?
   (a-ref (position integer?)
          (vec vector?)))
@@ -666,9 +679,18 @@
   (lambda (sym los)
     (list-find-position sym los)))
 
+(define claves-iguales?
+  (lambda (a b)
+    (cond
+      [(and (symbol? a) (symbol? b)) (eqv? a b)]
+      [(and (string? a) (string? b)) (string=? a b)]
+      [(and (symbol? a) (string? b)) (string=? (symbol->string a) b)]
+      [(and (string? a) (symbol? b)) (string=? a (symbol->string b))]
+      [else #f])))
+
 (define list-find-position
   (lambda (sym los)
-    (list-index (lambda (sym1) (eqv? sym1 sym)) los)))
+    (list-index (lambda (sym1) (claves-iguales? sym1 sym)) los)))
 
 (define list-index
   (lambda (pred ls)
@@ -707,7 +729,6 @@
   (cases bool bool-d
     [true-bool () #t]
     [false-bool () #f]))
-
 
 (define (lookup-prim prim)
   (cases pred-prim prim
@@ -798,7 +819,7 @@
 
 (define-datatype registro registro?
   (reg-a 
-   (keys (list-of symbol?))    ; Lista de identificadores
+   (keys (list-of scheme-value?))    ; Lista de identificadores
    (values vector?))) ; Vector de valores
 
 (define crear-registro
@@ -826,7 +847,7 @@
                (if (number? pos)
                    (begin
                      (setref! (a-ref pos values) value)
-                     value)
+                     "registro actualizado")
                    (eopl:error "No existe el identificador")))))))
 
 ;(define r (crear-registro '(x y) '("edad" "años")))
