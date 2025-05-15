@@ -71,7 +71,7 @@
     (expression (cadena) string-exp)
 
     ; Primitivas
-    (expression (primitive "(" (separated-list expression ",") ")") primapp-exp)
+    (expression ( primitive "(" (separated-list expression ",") ")") primapp-exp)
     (expression ( "(" expression primitive-n expression ")") primapp-num-exp)
 
     ; Definiciones
@@ -148,21 +148,21 @@
 
     
     ; base octal
-    (primitive ("+(x8)") oct-suma)
-    (primitive ("-(x8)") oct-resta)
-    (primitive ("*(x8)") oct-multi)
+    (primitive-n ("+(x8)") oct-suma)
+    (primitive-n ("-(x8)") oct-resta)
+    (primitive-n ("*(x8)") oct-multi)
     (primitive ("add1(x8)") oct-add1)
     (primitive ("sub1(x8)") oct-sub1)
     ; hexadecimales
-    (primitive ("+(x16)") hex-suma)
-    (primitive ("-(x16)") hex-resta)
-    (primitive ("*(x16)") hex-multi)
+    (primitive-n ("+(x16)") hex-suma)
+    (primitive-n ("-(x16)") hex-resta)
+    (primitive-n ("*(x16)") hex-multi)
     (primitive ("add1(x16)") hex-add1)
     (primitive ("sub1(x16)") hex-sub1)
     ; base 32
-    (primitive ("+(x32)") b32-suma)
-    (primitive ("-(x32)") b32-resta)
-    (primitive ("*(x32)") b32-multi)
+    (primitive-n ("+(x32)") b32-suma)
+    (primitive-n ("-(x32)") b32-resta)
+    (primitive-n ("*(x32)") b32-multi)
     (primitive ("add1(x32)") b32-add1)
     (primitive ("sub1(x32)") b32-sub1)
     
@@ -174,22 +174,22 @@
     ; Primitivas sobre listas
     (primitive ("vacio?") empty?-prim)
     (primitive ("vacio") empty-prim)
-    (primitive ("crear-lista") make-list-prim)
+    (primitive ("crearLista") make-list-prim)
     (primitive ("lista?") list?-prim)
     (primitive ("cabeza") head-prim)
     (primitive ("cola") tail-prim)
     (primitive ("append") append-prim)
-    (primitive ("ref-list") ref-list-prim)
-    (primitive ("set-list") set-list-prim)
+    (primitive ("refList") ref-list-prim)
+    (primitive ("setList") set-list-prim)
 
     ; Primitivas sobre tuplas 
-    (primitive ("vacio-tupla?") tuple-empty?-prim)
-    (primitive ("vacio-tupla") tuple-empty-prim)
-    (primitive ("crear-tupla") make-tuple-prim)
+    (primitive ("vacioTupla?") tuple-empty?-prim)
+    (primitive ("vacioTupla") tuple-empty-prim)
+    (primitive ("crearTupla") make-tuple-prim)
     (primitive ("tupla?") tuple?-prim)
-    (primitive ("cabeza-tupla") tuple-head-prim)
-    (primitive ("cola-tupla") tuple-tail-prim)
-    (primitive ("ref-tupla") tuple-ref-prim)
+    (primitive ("cabezaTupla") tuple-head-prim)
+    (primitive ("colaTupla") tuple-tail-prim)
+    (primitive ("refTupla") tuple-ref-prim)
 
     ; Primitivas sobre circuitos
     (primitive ("evalCircuit") eval-circuit-prim)
@@ -217,9 +217,9 @@
                 set-exp)
 
     ; Conversion numeros
-    (expression ("decimal-to-base" "(" expression ";" expression ")")
+    (expression ("decimalToBase" "(" expression ";" expression ")")
                decimal-to-base-exp)
-    (expression ("base-to-decimal" "(" expression ";" expression ")")
+    (expression ("baseToDecimal" "(" expression ";" expression ")")
                base-to-decimal-exp)
 
     ))
@@ -428,6 +428,18 @@
       (mult-prim () (* arg args))
       (div-prim () (/ arg args))
       (mod-prim () (modulo arg args))
+      ; base octal
+      (oct-suma () (suma-base arg args 8))
+      (oct-resta () (resta-base arg args 8))
+      (oct-multi () (multi-base arg args 8))     
+      ; base hexadecimal
+      (hex-suma () (suma-base arg args 16))
+      (hex-resta () (resta-base arg args 16))
+      (hex-multi () (multi-base arg args 16)) 
+      ; base 32
+      (b32-suma () (suma-base arg args 32))
+      (b32-resta () (resta-base arg args 32))
+      (b32-multi () (multi-base arg args 32))
       )))
 
 ;apply-primitive: <primitiva> <list-of-expression> -> numero
@@ -436,6 +448,13 @@
     (cases primitive prim
       (incr-prim () (+ (car args) 1))
       (decr-prim () (- (car args) 1))
+      (oct-add1 () (sucesor-base (car args) 8))
+      (oct-sub1 () (predecesor-base (car args) 8))
+      (hex-add1 () (sucesor-base (car args) 16))
+      (hex-sub1 () (predecesor-base (car args) 16))
+      (b32-add1 () (sucesor-base (car args) 32))
+      (b32-sub1 () (predecesor-base (car args) 32))   
+
       (eval-circuit-prim () (eval-circuit (car args) env))
       (cons-circuit-prim ()
         (let* ((c1 (eval-expression (car args) env))
@@ -485,27 +504,7 @@
           (if (registro? arg)
               (set-registro arg id val)
               (eopl:error 'ref-registro-prim "El primer argumento no es un registro"))))
-      ; base octal
-      (oct-suma () (suma-base (car args) (cadr args) 8))
-      (oct-resta () (resta-base (car args) (cadr args) 8))
-      (oct-multi () (multi-base (car args) (cadr args) 8))
-      (oct-add1 () (sucesor-base (car args) 8))
-      (oct-sub1 () (predecesor-base (car args) 8))
-          
-      ; base hexadecimal
-      (hex-suma () (suma-base (car args) (cadr args) 16))
-      (hex-resta () (resta-base (car args) (cadr args) 16))
-      (hex-multi () (multi-base (car args) (cadr args) 16))
-      (hex-add1 () (sucesor-base (car args) 16))
-      (hex-sub1 () (predecesor-base (car args) 16))
       
-      ; base 32
-      (b32-suma () (suma-base (car args) (cadr args) 32))
-      (b32-resta () (resta-base (car args) (cadr args) 32))
-      (b32-multi () (multi-base (car args) (cadr args) 32))
-      (b32-add1 () (sucesor-base (car args) 32))
-      (b32-sub1 () (predecesor-base (car args) 32))
-
       ;listas
       (empty?-prim () (zero? (vector-length (car args)))) 
       (empty-prim () (vector)) 
