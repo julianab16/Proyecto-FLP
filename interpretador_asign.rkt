@@ -80,9 +80,9 @@
                 var-exp)
     (expression ("const" (separated-list identifier "=" expression ",") "in" expression)
                 const-exp)
+    (expression ("rec" (arbno identifier "(" (separated-list identifier ",") ")" "=" expression)  "in" expression) 
+                rec-exp)
 
-    #| (expression ("rec" (separated-list (identifier "(" (separated-list identifier ",") ")" "=" expression) ",") "in" expression)
-                letrec-exp) |#
     
     ; Datos
     (expression (number) num-exp)
@@ -168,8 +168,8 @@
     
 
     ; Primitivas sobre cadenas
-    ;(primitive ("longitud") longitud-prim)
-    ;(primitive ("concatenar") concatenar-prim)
+    (primitive ("longitud") longitud-prim)
+    (primitive ("concatenar") concatenar-prim)
 
     ; Primitivas sobre listas
     (primitive ("vacio?") empty?-prim)
@@ -190,8 +190,7 @@
     (primitive ("cabeza-tupla") tuple-head-prim)
     (primitive ("cola-tupla") tuple-tail-prim)
     (primitive ("ref-tupla") tuple-ref-prim)
-    #|
-    (expression ((arbno identifier "="  expression) expression) let-exp)|#
+
     ; Primitivas sobre circuitos
     (primitive ("evalCircuit") eval-circuit-prim)
     (primitive ("connectCircuits") cons-circuit-prim)
@@ -278,7 +277,7 @@
   (lambda ()
     (extend-env
      '(x v c)
-     '(3 5 10)
+     '(0 0 0)
      (empty-env))))
 
 ;eval-expression: <expression> <enviroment> -> numero
@@ -296,7 +295,6 @@
         (let ((arg (eval-expression exp env))
               (args (eval-expression exps env)))
           (apply-prim-num prim arg args env)))
-
       (primapp-exp (prim rands)
           (cases primitive prim
           (cons-circuit-prim ()
@@ -326,7 +324,10 @@
                 (let ((args (map (lambda (x) (const-target (eval-expression x env))) rands)))
                    (eval-expression body (extended-env-record ids (list->vector args) env))))
 
-      
+      (rec-exp (proc-names idss bodies rec-body)
+                  (eval-expression rec-body
+                                   (extend-env-recursively proc-names idss bodies env)))
+
       (if-exp (test-exp true-exp false-exp)
               (true-value? (eval-exp-bool test-exp env))
               (if (true-value? (eval-exp-bool test-exp env))
@@ -360,7 +361,7 @@
                         (begin
                           (eval-expression exp2 env)
                           (loop (eval-exp-bool exp1 env)))
-                        "fin del bucle"))
+                        'fin))
                 )
 
       (for-exp (id iterable-exp body-exp)
@@ -539,6 +540,10 @@
           (if (or (< index 0) (>= index (length tuple)))
               (eopl:error 'ref-tupla "Índice inválido: ~s" index)
               (list-ref tuple index))))
+
+      ; Primitivas cadenas
+      (concatenar-prim () (string-append (car args) (cadr args)))
+      (longitud-prim () (string-length (car args)))
       
       )))
 
@@ -1141,16 +1146,15 @@ scan&parse
 ;if >=(+ (2 , 3) , 5) : * (2 , 2) else : 0 ; ⇒ 4
 ;set x = + (2, 3) ; ⇒ 5
 
-;while and (> (x , 0) , < (x , 10)) do set x =-(x,1) done 
+;var x = 5 in while > (x, 0) do set x = (x - 1) done
 
 ; Crear un registro
-;crear-registro(x = 42; y = True; mensaje = "hola")
-;registros?(crear-registro(a = 1))
+;registros?({x = 1; y = 2})
 
-; crear-registro(x = 10; y = 20)
-; set-registro(crear-registro({x = 1; y = 2}), x, 5)
-;var A = True, c1 = circuit ( (gate G1 (not) (A)) ) in eval-circuit(c1)
-;var A = True, B = True, c1 = circuit ( (gate G2 (and) (A B)) ) in eval-circuit(c1) 
+; crearRegistro()
+; setRegistro(crear-registro({x = 1; y = 2}), x, 5)
+;var A = True, c1 = circuit ( (gate G1 (not) (A)) ) in evalCircuit(c1) 
+;var A = True, B = True, c1 = circuit ( (gate G2 (and) (A B)) ) in evalCircuit(c1) 
 
 ;var r = crear-registro({a = 1; b = 2; c = 3}) in
 ;begin set-registro(r, b, 42); ref-registro(r, b) end
