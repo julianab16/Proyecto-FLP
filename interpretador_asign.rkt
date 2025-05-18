@@ -44,8 +44,8 @@
    (whitespace) skip)
   (comment
    ("//" (arbno (not #\newline))) skip)
-  (identifier
-   (letter (arbno (or letter digit "_"))) symbol)
+   (identifier
+  ((or letter "_") (arbno (or letter digit "_"))) symbol)
   (number
    (digit (arbno digit)) number)
   (number
@@ -63,7 +63,7 @@
 ;Especificación Sintáctica (gramática)
 
 (define grammar-simple-interpreter
-  '((program (expression) a-program)
+  '((program ((arbno class-decl) expression) a-program)
 
     ;Identificadores
     (expression (identifier) id-exp)
@@ -75,14 +75,12 @@
     (expression ( "(" expression primitive-n expression ")") primapp-num-exp)
 
     ; Definiciones
-
     (expression ("var" (separated-list identifier "=" expression ",") "in" expression)
                 var-exp)
     (expression ("const" (separated-list identifier "=" expression ",") "in" expression)
                 const-exp)
     (expression ("rec" (arbno identifier "(" (separated-list identifier ",") ")" "=" expression)  "in" expression) 
                 rec-exp)
-
     
     ; Datos
     (expression (number) num-exp)
@@ -90,14 +88,11 @@
     (expression ("x16" "(" (arbno number) ")") num-hex-exp)
     (expression ("x32" "(" (arbno number) ")") num-base32-exp)
     (expression (cadena) string-exp)
-     
  
     ; Const datos predefinidos
-
     (expression ("[" (separated-list expression ":") "]") list-exp)
     (expression ("tupla[" (separated-list expression ":") "]") tuple-exp)
-    
-
+  
     (expression (expr-bool) expr-bool-exp)
 
     (expr-bool (pred-prim "(" expression "," expression ")") pred-exp-bool)
@@ -122,14 +117,13 @@
     (oper-un-bool ("not") not-prim)
   
     ; Estructuras de control
-
     (expression ("begin" expression (arbno ";" expression) "end") begin-exp) 
     (expression ("if" expr-bool ":" expression "else" ":" expression) if-exp) 
     (expression ("while" expr-bool "do" expression "done" ) while-exp)
     (expression ("for" identifier "in" expression "do" expression "done") for-exp)
 
     ; Registros
-    
+
     (expression ("{" (separated-list expression "=" expression ";") "}") register-exp)
 
     (primitive ("registros?")  is-registro-prim)
@@ -146,7 +140,6 @@
     (primitive ("add1") incr-prim)
     (primitive ("sub1") decr-prim)
 
-    
     ; base octal
     (primitive-n ("+(x8)") oct-suma)
     (primitive-n ("-(x8)") oct-resta)
@@ -165,7 +158,6 @@
     (primitive-n ("*(x32)") b32-multi)
     (primitive ("add1(x32)") b32-add1)
     (primitive ("sub1(x32)") b32-sub1)
-    
 
     ; Primitivas sobre cadenas
     (primitive ("longitud") longitud-prim)
@@ -222,6 +214,18 @@
     (expression ("baseToDecimal" "(" expression ";" expression ")")
                base-to-decimal-exp)
 
+    ; Objetos
+    (maybe-super () object)
+    (class-decl 
+    ("class" identifier maybe-super ":" (arbno method-decl))
+    a-class-decl)
+
+    (method-decl
+      ("def" identifier 
+        "(" (separated-list identifier ",") ")" ":"
+        (arbno assign) ) a-method-decl)
+
+    (assign  ("self." identifier "=" identifier ) assign-a)
     ))
 
 ;******************************************************************************************
@@ -262,11 +266,12 @@
 ;eval-program: <programa> -> numero
 ; función que evalúa un programa teniendo en cuenta un ambiente dado (se inicializa dentro del programa)
 
-(define eval-program
+(define eval-program 
   (lambda (pgm)
     (cases program pgm
-      (a-program (body)
-                 (eval-expression body (init-env))))))
+      (a-program (c-decls exp)
+        (elaborate-class-decls! c-decls) ;\new1
+        (eval-expression exp (empty-env))))))
 
 (define-datatype target target?
   (direct-target (expval expval?))
@@ -407,7 +412,6 @@
             (display val)
             (newline)
             'fin))
-      (else (eopl:error 'eval-expression "Expresión desconocida: ~s" exp))
     )))
 
 ; funciones auxiliares para aplicar eval-expression a cada elemento de una 
@@ -420,6 +424,7 @@
   (lambda (rand env)
     (eval-expression rand env)))
 
+; apply-prim-num: <primitiva> <numero> <numero> -> numero
 (define apply-prim-num
   (lambda (prim arg args env)
     (cases primitive-n prim
@@ -442,6 +447,14 @@
       (b32-multi () (multi-base arg args 32))
       )))
 
+(define (parse-type-op id)
+  (cond
+    [(eq? id "and") (and-op)]
+    [(eq? id 'or) (or-op)]
+    [(eq? id 'not) (not-op)]
+    [(eq? id 'xor) (xor-op)]
+    [else (eopl:error 'parse-type-op "Operador lógico desconocido: ~s" id)]))
+    
 ;apply-primitive: <primitiva> <list-of-expression> -> numero
 (define apply-primitive
   (lambda (prim args env)
@@ -468,7 +481,13 @@
       (merge-circuit-prim ()
         (let* ((c1 (eval-expression (car args) env))
                (c2 (eval-expression (cadr args) env))
-               (ty-op (eval-expression (caddr args) env))
+              (ty-op-str (eval-expression (caddr args) env))
+              (ty-op (cond
+                        [(string=? ty-op-str "and") (and-op)]
+                        [(string=? ty-op-str "or") (or-op)]
+                        [(string=? ty-op-str "not") (not-op)]
+                        [(string=? ty-op-str "xor") (xor-op)]
+                        [else (eopl:error 'merge-circuits "Operador desconocido: ~s" ty-op-str)]))
                (out-id (cases expression (cadddr args)
                          (id-exp (id) id)
                          (num-exp (datum) datum)
@@ -584,7 +603,6 @@
   (lambda ()
     (empty-env-record)))       ;llamado al constructor de ambiente vacío 
 
-
 ;extend-env: <list-of symbols> <list-of numbers> enviroment -> enviroment
 ;función que crea un ambiente extendido
 (define extend-env
@@ -633,7 +651,6 @@
 ;*******************************************************************************************
 ;Referencias
 
-
 (define expval?
   (lambda (x)
     (or (number? x) (procval? x)  (string? x) (boolean? x))))
@@ -671,7 +688,6 @@
     (cases reference ref
       (a-ref (pos vec)
             (vector-set! vec pos val)))))
-
 
 ;****************************************************************************************
 ;Funciones Auxiliares
@@ -770,7 +786,6 @@
           (loop (cdr lst)
                 (+ 1 pos)
                 (+ acc (* (car lst) (expt b pos))))))))
-
 
 (define sucesor-base
   (lambda (num base)
@@ -1014,7 +1029,12 @@
 (define (connect-circuits c1 c2 input-to-replace env)
   (let* ([gates1 (extract-gates c1)]
          [last-id (gate-id (last gates1))]
-         [gates2 (update-gates (extract-gates c2) input-to-replace last-id)])
+         [gates2 (update-gates (extract-gates c2) input-to-replace last-id)]
+         [k (eval-circuit c1 env)]
+         [m (eval-circuit c2 env)]
+         [keys (list "circuto1" "circuito2")]
+         [values (list k m)]
+         )
     (make-circuit (append gates1 gates2))))
 
 ;; Funcion: extract-gates
@@ -1123,12 +1143,144 @@
     [input-list (items) items]))
 
 ;******************************************************************************************
+;Objetos
+
+; Definición de la clase
+(define class-decl->class-name
+  (lambda (c-decl)
+    (cases class-decl c-decl
+      (a-class-decl (name super methods)
+        name))))
+
+
+(define class-decl->super-name
+  (lambda (c-decl)
+    (cases class-decl c-decl
+      (a-class-decl (class-name super-name m-decls)
+        super-name))))
+
+(define class-decl->method-decls
+  (lambda (c-decl)
+    (cases class-decl c-decl
+      (a-class-decl (name super methods)
+        methods))))
+
+(define method-decl->method-name
+  (lambda (md)
+    (cases method-decl md
+      (a-method-decl (method-name ids body) method-name))))
+
+(define method-decl->ids
+  (lambda (md)
+    (cases method-decl md
+      (a-method-decl (method-name ids body) ids))))
+
+(define method-decl->body
+  (lambda (md)
+    (cases method-decl md
+      (a-method-decl (method-name ids body) body))))
+
+(define method-decls->method-names
+  (lambda (mds)
+    (map method-decl->method-name mds)))
+
+(define method-decls->field-ids
+  (lambda (mds)
+    (apply append
+           (map (lambda (md)
+                  (field-ids->assign-ids (method-decl->body md)))
+                mds))))
+
+(define field-ids->assign-ids
+  (lambda (assigns)
+    (apply append
+      (map (lambda (a)
+             (cases assign a
+               (assign-a (field-name val-name)
+                 (list field-name))))
+           assigns))))
+
+(define-datatype class class?
+  (a-class
+    (class-name symbol?)  
+    (super-name symbol?) 
+    (field-length integer?)  
+    (field-ids (list-of symbol?))
+    (methods method-environment?)))
+
+(define-datatype method method?
+  (a-method
+    (method-decl method-decl?)
+    (super-name symbol?)
+    (field-ids (list-of symbol?))
+    (methods method-environment?)))
+
+(define method-environment? (list-of method?))
+
+(define elaborate-class-decl!
+  (lambda (c-decl)
+    (let ((super-name (class-decl->super-name c-decl))
+          (methods (class-decl->method-decls c-decl)))
+      (let ((field-ids (method-decls->field-ids methods)))
+        (add-to-class-env!
+         (a-class
+           (class-decl->class-name c-decl)
+           super-name
+           (length field-ids)
+           field-ids
+           (roll-up-method-decls
+             methods super-name field-ids)))))))
+
+(define lookup-class                    
+  (lambda (name)
+    (let loop ((env the-class-env))
+      (cond
+        ((null? env) (eopl:error 'lookup-class
+                       "Unknown class ~s" name))
+        ((eqv? (class->class-name (car env)) name) (car env))
+        (else (loop (cdr env)))))))
+
+
+(define roll-up-method-decls
+  (lambda (methods super-name field-ids)
+    (map
+      (lambda (m-decl)
+        (a-method m-decl super-name field-ids))
+      (methods))))
+
+(define class->class-name
+  (lambda (c-struct)
+    (cases class c-struct
+      (a-class (class-name super-name field-length field-ids methods)
+        class-name))))
+
+(define class->field-ids
+  (lambda (c-struct)
+    (cases class c-struct
+      (a-class (class-name super-name field-length field-ids methods)
+        field-ids))))
+
+(define class-name->field-ids
+  (lambda (class-name)
+    (if (eqv? class-name 'object) '()
+      (class->field-ids (lookup-class class-name)))))
+
+(define the-class-env '())
+
+(define elaborate-class-decls!
+  (lambda (c-decls)
+    (set! the-class-env c-decls)))
+
+(define add-to-class-env!
+  (lambda (class)
+    (set! the-class-env (cons class the-class-env))))
+
+;******************************************************************************************
 ;Pruebas
 
-;(show-the-datatypes)
 just-scan
 scan&parse
-;(display (scan&parse "ref-registro({x = 10; y = 20}, x)"))
+;(display (scan&parse "mergeCircuits(c1, c2, and, G3)"))
 ;(display (show-the-datatypes))
 ;(newline)
 ;== (3, 3)             ; ⇒ #t
@@ -1150,10 +1302,65 @@ scan&parse
 ; Crear un registro
 ;registros?({x = 1; y = 2})
 
-; crearRegistro()
-; setRegistro(crear-registro({x = 1; y = 2}), x, 5)
+; crearRegistro([x : "y"], [1 : 2])
+; setRegistro(crear-registro(), x, 5)
 ;var A = True, c1 = circuit ( (gate G1 (not) (A)) ) in evalCircuit(c1) 
-;var A = True, B = True, c1 = circuit ( (gate G2 (and) (A B)) ) in evalCircuit(c1) 
+;var A = True, B = True, c1 = circuit ( (gate G2 (and) (A B)) ) in evalCircuit(c1)
+
+#|
+var 
+A = True,
+B = True,
+c1 = circuit ( (gate G2 (and) (A B)) )
+in
+var
+c2 = circuit (
+    (gate G1 (or) (A B)) ;
+    (gate G2 (and) (A B)) ;
+    (gate G3 (not) (G2)) ;
+    (gate G4 (and) (G1 G3))
+  )
+in
+var
+c3 = connectCircuits (c1,c2,G1)
+in
+evalCircuit(c3) 
+
+Ejemplo Sustentacion Circuitos
+ var
+A = True,
+B = True,
+//Circuito 1 (sección 3.2)
+c1 = circuit (
+(gate G2 (and) (A B))
+),
+
+//Circuito 2 (sección 3.3)
+c2 = circuit (
+(gate G1 (or) (A B)) ;
+(gate G2 (and) (A B)) ;
+(gate G3 (not) (G2)) ;
+(gate G4 (and) (G1 G3))
+)
+in 
+var
+// Conectar salida de c1 a una entrada de c2
+con = connectCircuits(c1, c2, G1),
+
+// Unir simplemente las compuertas sin conexión
+un = mergeCircuits(c1, c2, "or", G6)
+in
+crearRegistro(
+["Circuito1" : "Circuito2"], [con : un])
+
+
+
+class Person:
+    def __init__(self, fname, lname):
+        self.firstname = fname
+        self.lastname = lname
+|#
+
 
 ;var r = crear-registro({a = 1; b = 2; c = 3}) in
 ;begin set-registro(r, b, 42); ref-registro(r, b) end
