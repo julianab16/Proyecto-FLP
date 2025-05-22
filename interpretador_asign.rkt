@@ -66,32 +66,29 @@
   '((program ((arbno class-decl) expression) a-program)
 
     ;Identificadores
-    (expression (identifier) id-exp)
     (expression (number) num-exp)
     (expression (cadena) string-exp)
+    (expression (identifier maybe-call) id-exp)
 
     ; Primitivas
     (expression ( primitive "(" (separated-list expression ",") ")") primapp-exp)
-    (expression ( "(" expression primitive-n expression ")") primapp-num-exp)
+    (expression ( "("expression primitive-n expression ")" ) primapp-num-exp)
 
     ; Definiciones
-    (expression ("var" (separated-list identifier "=" expression ",") "in" expression)
-                var-exp)
-    (expression ("const" (separated-list identifier "=" expression ",") "in" expression)
-                const-exp)
-    (expression ("rec" (arbno identifier "(" (separated-list identifier ",") ")" "=" expression)  "in" expression) 
-                rec-exp)
-    
+    (expression ("var" (separated-list identifier "=" expression ",") "in" expression) var-exp)
+    (expression ("const" (separated-list identifier "=" expression ",") "in" expression)  const-exp)
+    (expression ("rec" (arbno identifier "(" (separated-list identifier ",") ")" "="  expression )  "in"  expression)rec-exp)
+    (maybe-call ("(" (separated-list expression ",") ")") call-args)
+    (maybe-call () empty-call)
+
     ; Datos
-    (expression (number) num-exp)
     (expression ("x8" "(" (arbno number) ")") num-oct-exp)
     (expression ("x16" "(" (arbno number) ")") num-hex-exp)
     (expression ("x32" "(" (arbno number) ")") num-base32-exp)
-    (expression (cadena) string-exp)
  
     ; Const datos predefinidos
-    (expression ("[" (separated-list expression ":") "]") list-exp)
-    (expression ("tupla[" (separated-list expression ":") "]") tuple-exp)
+    (expression ("[" (separated-list expression ",") "]") list-exp)
+    (expression ("tupla[" (separated-list expression ",") "]") tuple-exp)
   
     (expression (expr-bool) expr-bool-exp)
 
@@ -118,12 +115,12 @@
   
     ; Estructuras de control
     (expression ("begin" expression (arbno ";" expression) "end") begin-exp) 
-    (expression ("if" expr-bool ":" expression "else" ":" expression) if-exp) 
-    (expression ("while" expr-bool "do" expression "done" ) while-exp)
+    (expression ("if" expression ":" expression "else" ":" expression) if-exp) 
+    (expression ("while" expression "do" expression "done" ) while-exp)
     (expression ("for" identifier "in" expression "do" expression "done") for-exp)
+    (expression ("" expression (arbno "," expression)"") n-exp)
 
     ; Registros
-
     (expression ("{" (separated-list expression "=" expression ";") "}") register-exp)
 
     (primitive ("registros?")  is-registro-prim)
@@ -294,7 +291,10 @@
       (num-oct-exp (number) number)
       (num-hex-exp (number) number)
       (num-base32-exp (number) number)
-      (id-exp (id) (apply-env env id))
+      (id-exp (id args) 
+        (let ((val (apply-env env id)))
+          (maybe-calls val args env)))
+
       (string-exp (cadena) (substring cadena 1 (- (string-length cadena) 1)))
       (primapp-num-exp (exp prim exps)
         (let ((arg (eval-expression exp env))
@@ -328,14 +328,13 @@
       (const-exp (ids rands body)
                 (let ((args (map (lambda (x) (const-target (eval-expression x env))) rands)))
                    (eval-expression body (extended-env-record ids (list->vector args) env))))
-
-      (rec-exp (proc-names idss bodies rec-body)
-                  (eval-expression rec-body
-                                   (extend-env-recursively proc-names idss bodies env)))
-
+      
+      (rec-exp (proc-names idss bodies body)
+               (eval-expression body (extend-env-recursively proc-names idss bodies env)))
+        
       (if-exp (test-exp true-exp false-exp)
-              (true-value? (eval-exp-bool test-exp env))
-              (if (true-value? (eval-exp-bool test-exp env))
+              (true-value? (eval-expression test-exp env))
+              (if (true-value? (eval-expression test-exp env))
                   (eval-expression true-exp env)
                   (eval-expression false-exp env))
               )
@@ -345,8 +344,7 @@
           (display val)
           (newline)
             (setref! (apply-env-ref env id) val)
-            val)
-               )
+            val))
 
       (begin-exp (exp exps) 
                  (let loop ((acc (eval-expression exp env))
@@ -361,13 +359,20 @@
                      (eval-exp-bool exp env))
       
       (while-exp (exp1 exp2)
-                  (let loop ((test (eval-exp-bool exp1 env)))
+                  (let loop ((test (eval-expression exp1 env)))
                     (if (true-value? test)
                         (begin
                           (eval-expression exp2 env)
                           (loop (eval-exp-bool exp1 env)))
                         'fin))
                 )
+      (n-exp (rator rands)
+               (let ((proc (eval-expression rator env))
+                     (args (eval-rands rands env)))
+                 (if (procval? proc)
+                     (apply-procedure proc args)
+                     (eopl:error 'eval-expression
+                                 "Attempt to apply non-procedure ~s" proc))))
 
       (for-exp (id iterable-exp body-exp)
         (let ((iterable (eval-expression iterable-exp env)))
@@ -398,7 +403,7 @@
                    ;; Convierte cada campo a símbolo si es un id-exp
                    (campos-simbolos (map (lambda (c)
                                            (cases expression c
-                                             (id-exp (id) id)
+                                             (id-exp (id n) id)
                                               (string-exp (cadena) (substring cadena 1 (- (string-length cadena) 1)))
                                              (else (eopl:error 'register-exp "Campo no es un identificador: ~s" c))))
                                          campos))
@@ -413,6 +418,25 @@
             (newline)
             'fin))
     )))
+
+#|
+(define rec-call
+  (lambda (calls env)
+    (cases maybe-call calls
+      (call-args (proc-id rands)
+        (let* ([proc-val (apply-env env proc-id)]
+               [arg-vals (eval-rands rands env)])
+          (apply-procedure proc-val arg-vals)))
+      (empty-call ())))) |#
+
+(define maybe-calls
+  (lambda (proc-id calls env)
+    (cases maybe-call calls
+      (call-args (rands)
+        (let* ([proc-val proc-id]
+               [arg-vals (eval-rands rands env)])
+          (apply-procedure proc-val arg-vals)))
+      (empty-call () proc-id))))
 
 ; funciones auxiliares para aplicar eval-expression a cada elemento de una 
 ; lista de operandos (expresiones)
@@ -447,14 +471,6 @@
       (b32-multi () (multi-base arg args 32))
       )))
 
-(define (parse-type-op id)
-  (cond
-    [(eq? id "and") (and-op)]
-    [(eq? id 'or) (or-op)]
-    [(eq? id 'not) (not-op)]
-    [(eq? id 'xor) (xor-op)]
-    [else (eopl:error 'parse-type-op "Operador lógico desconocido: ~s" id)]))
-    
 ;apply-primitive: <primitiva> <list-of-expression> -> numero
 (define apply-primitive
   (lambda (prim args env)
@@ -473,7 +489,7 @@
         (let* ((c1 (eval-expression (car args) env))
                (c2 (eval-expression (cadr args) env))
                (input-id (cases expression (caddr args)
-                           (id-exp (id) id)
+                           (id-exp (id n) id)
                            (num-exp (datum) datum)
                            (else (eopl:error 'connect-circuits 
                                             "Tercer parametro no es un identificador")))))
@@ -489,7 +505,7 @@
                         [(string=? ty-op-str "xor") (xor-op)]
                         [else (eopl:error 'merge-circuits "Operador desconocido: ~s" ty-op-str)]))
                (out-id (cases expression (cadddr args)
-                         (id-exp (id) id)
+                         (id-exp (id n) id)
                          (num-exp (datum) datum)
                          (else (eopl:error 'merge-circuits 
                                           "Cuarto parámetro no es un identificador")))))
@@ -505,7 +521,7 @@
       (ref-registro-prim ()
         (let* ((arg (eval-expression (car args) env))
               (i (cases expression (cadr args)
-                         (id-exp (id) id)
+                         (id-exp (id n) id)
                          (string-exp (cadena) (substring cadena 1 (- (string-length cadena) 1)))
                          (else (eopl:error 'ref-registro-prim 
                                           "Segundo parámetro no es un identificador")))))
@@ -515,7 +531,7 @@
       (set-registro-prim ()
             (let* ((arg (eval-expression (car args) env))
                     (id (cases expression (cadr args)
-                         (id-exp (id) id)
+                         (id-exp (id n) id)
                          (string-exp (cadena) (substring cadena 1 (- (string-length cadena) 1)))
                          (else (eopl:error 'set-registro-prim 
                                           "Segundo parámetro no es un identificador"))))
@@ -869,6 +885,7 @@
                      "registro actualizado")
                    (eopl:error "No existe el identificador")))))))
 
+
 ;(define r (crear-registro '(x y) '("edad" "años")))
 ;(display r)
 ;(newline)
@@ -1029,12 +1046,7 @@
 (define (connect-circuits c1 c2 input-to-replace env)
   (let* ([gates1 (extract-gates c1)]
          [last-id (gate-id (last gates1))]
-         [gates2 (update-gates (extract-gates c2) input-to-replace last-id)]
-         [k (eval-circuit c1 env)]
-         [m (eval-circuit c2 env)]
-         [keys (list "circuto1" "circuito2")]
-         [values (list k m)]
-         )
+         [gates2 (update-gates (extract-gates c2) input-to-replace last-id)])
     (make-circuit (append gates1 gates2))))
 
 ;; Funcion: extract-gates
@@ -1098,6 +1110,7 @@
          [last-id1 (gate-id (last gates1))]
          [last-id2 (gate-id (last gates2))]
          [new-gate (create-merged-gate typ-op out-id last-id1 last-id2)])
+        
     (make-circuit (append gates1 gates2 (list new-gate)))))
 
 ;; Funcion: create-merged-gate
@@ -1294,7 +1307,7 @@ scan&parse
 ;not (> (x , 5)) ; ⇒ #t
 ;and (> (x , 0) , < (x , 10)) ; ⇒ #t
 
-;if >=(+ (2 , 3) , 5) : * (2 , 2) else : 0 ; ⇒ 4
+;if >=((2 + 3) , 5) : (2 * 2) else : 0 ; ⇒ 4
 ;set x = + (2, 3) ; ⇒ 5
 
 ;var x = 5 in while > (x, 0) do set x = (x - 1) done
@@ -1352,6 +1365,50 @@ un = mergeCircuits(c1, c2, "or", G6)
 in
 crearRegistro(
 ["Circuito1" : "Circuito2"], [con : un])
+
+var
+A = True,
+B = True,
+//Circuito 1 (sección 3.1)
+c1 = circuit ( (gate G2 (and) (A B)) ),
+
+//Circuito 2 (sección 3.3)
+c2 = circuit (
+(gate G1 (or) (A B)) ;
+(gate G2 (and) (A B)) ;
+(gate G3 (not) (G2)) ;
+(gate G4 (and) (G1 G3))
+)
+in 
+var
+// Conectar salida de c1 a una entrada de c2
+con = connectCircuits(c1, c2, G1),
+
+// Unir simplemente las compuertas sin conexión
+un = mergeCircuits(c1, c2, "and", G6) 
+in
+crearRegistro(
+["Circuito1", "Circuito2"], [con, un])
+
+
+var x = [2,4,6,8], y = 100, z = {"nombre" = "juliana"; "edad" = 2} 
+in
+rec F1(a) = setLista(a, 1, "hola")
+F2(b) = setLista(y, 0, b)
+F3(c) = setRegistro(c, "nombre", "Juliana") 
+in
+| F1(x), F2(y), F3(z) |
+
+
+
+
+
+rec factorial(n) = if == (n, 0): 1 else : (n * factorial((n - 1))) 
+map(list) = if vacio?(list) : list else : append([factorial(cabeza(list))], [map(cola(list))])
+registroFactorial(list) = crearRegistro(["valores", "factoriales"], [tupla[list],map(list)])
+in 
+registroFactorial([1,2,3,4,7,9])
+
 
 
 
