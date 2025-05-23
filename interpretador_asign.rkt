@@ -321,8 +321,9 @@
                  (eval-expression body (extended-env-record vars (list->vector args) env))))
 
       (const-exp (ids rands body)
-                (let ((args (map (lambda (x) (const-target (eval-expression x env))) rands)))
-                   (eval-expression body (extended-env-record ids (list->vector args) env))))
+                 (let ((args (map (lambda (x) (const-target (eval-expression x env))) rands)))
+                   (target-to-value
+                    (eval-expression body (extended-env-record ids (list->vector args) env)))))
 
       (rec-exp (proc-names idss bodies rec-body)
                   (eval-expression rec-body
@@ -337,11 +338,8 @@
       
       (set-exp (id rhs-exp)
           (let ((val (eval-expression rhs-exp env)))
-          (display val)
-          (newline)
             (setref! (apply-env-ref env id) val)
-            val)
-               )
+            val))
 
       (begin-exp (exp exps) 
                  (let loop ((acc (eval-expression exp env))
@@ -670,8 +668,25 @@
   (lambda (ref val)
     (cases reference ref
       (a-ref (pos vec)
-            (vector-set! vec pos val)))))
+        (let ((target (vector-ref vec pos)))
+          (if (const-target? target)
+              (eopl:error "No se puede modificar una constante.")
+              (vector-set! vec pos val)))))))
 
+; Función para sacar el valor de un target
+(define target-to-value
+  (lambda (t)
+    (cases target t
+      (direct-target (v) v)
+      (const-target (v) v)
+      (indirect-target (v) v))))
+
+; Función para determinar si es un target de tipo constante
+(define (const-target? x)
+  (and (target? x) (cases target x
+    (const-target (v) #t)
+    (direct-target (v) #f)
+    (indirect-target (v) #f))))
 
 ;****************************************************************************************
 ;Funciones Auxiliares
@@ -1145,7 +1160,8 @@ scan&parse
 ;if >=(+ (2 , 3) , 5) : * (2 , 2) else : 0 ; ⇒ 4
 ;set x = + (2, 3) ; ⇒ 5
 
-;var x = 5 in while > (x, 0) do set x = (x - 1) done
+;var x = 5 in while > (x, 0) do begin set x = (x - 1); print (x) end done
+
 
 ; Crear un registro
 ;registros?({x = 1; y = 2})
@@ -1157,5 +1173,21 @@ scan&parse
 
 ;var r = crear-registro({a = 1; b = 2; c = 3}) in
 ;begin set-registro(r, b, 42); ref-registro(r, b) end
-;
+
+;;  begin
+;;  var r = 9 in 
+;;  begin
+;;  set r = 8;
+;;  print (r)
+;;  end end
+
+
+;;  begin
+;;  const r = 9 in 
+;;  begin
+;;  set r = 8;
+;;  print (r)
+;;  end end
+
+
 (interpretador)
