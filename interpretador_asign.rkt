@@ -77,7 +77,10 @@
     ; Definiciones
 <<<<<<< HEAD
 <<<<<<< HEAD
+<<<<<<< HEAD
 
+=======
+>>>>>>> parent of 27a93d1 (fixed rec funtion)
 =======
 >>>>>>> parent of 27a93d1 (fixed rec funtion)
 =======
@@ -90,7 +93,10 @@
                 rec-exp)
 <<<<<<< HEAD
 <<<<<<< HEAD
+<<<<<<< HEAD
 
+=======
+>>>>>>> parent of 27a93d1 (fixed rec funtion)
 =======
 >>>>>>> parent of 27a93d1 (fixed rec funtion)
 =======
@@ -104,6 +110,7 @@
     (expression (cadena) string-exp)
 <<<<<<< HEAD
 <<<<<<< HEAD
+<<<<<<< HEAD
      
  
     ; Const datos predefinidos
@@ -115,6 +122,10 @@
 =======
  
     ; Const datos predefinidos
+=======
+ 
+    ; Const datos predefinidos
+>>>>>>> parent of 27a93d1 (fixed rec funtion)
 =======
  
     ; Const datos predefinidos
@@ -156,7 +167,11 @@
     ; Registros
 <<<<<<< HEAD
 <<<<<<< HEAD
+<<<<<<< HEAD
     
+=======
+
+>>>>>>> parent of 27a93d1 (fixed rec funtion)
 =======
 
 >>>>>>> parent of 27a93d1 (fixed rec funtion)
