@@ -75,14 +75,20 @@
     (expression ( "(" expression primitive-n expression ")") primapp-num-exp)
 
     ; Definiciones
+<<<<<<< HEAD
 
+=======
+>>>>>>> parent of 27a93d1 (fixed rec funtion)
     (expression ("var" (separated-list identifier "=" expression ",") "in" expression)
                 var-exp)
     (expression ("const" (separated-list identifier "=" expression ",") "in" expression)
                 const-exp)
     (expression ("rec" (arbno identifier "(" (separated-list identifier ",") ")" "=" expression)  "in" expression) 
                 rec-exp)
+<<<<<<< HEAD
 
+=======
+>>>>>>> parent of 27a93d1 (fixed rec funtion)
     
     ; Datos
     (expression (number) num-exp)
@@ -90,6 +96,7 @@
     (expression ("x16" "(" (arbno number) ")") num-hex-exp)
     (expression ("x32" "(" (arbno number) ")") num-base32-exp)
     (expression (cadena) string-exp)
+<<<<<<< HEAD
      
  
     ; Const datos predefinidos
@@ -98,6 +105,13 @@
     (expression ("tupla[" (separated-list expression ":") "]") tuple-exp)
     
 
+=======
+ 
+    ; Const datos predefinidos
+    (expression ("[" (separated-list expression ":") "]") list-exp)
+    (expression ("tupla[" (separated-list expression ":") "]") tuple-exp)
+  
+>>>>>>> parent of 27a93d1 (fixed rec funtion)
     (expression (expr-bool) expr-bool-exp)
 
     (expr-bool (pred-prim "(" expression "," expression ")") pred-exp-bool)
@@ -129,7 +143,11 @@
     (expression ("for" identifier "in" expression "do" expression "done") for-exp)
 
     ; Registros
+<<<<<<< HEAD
     
+=======
+
+>>>>>>> parent of 27a93d1 (fixed rec funtion)
     (expression ("{" (separated-list expression "=" expression ";") "}") register-exp)
 
     (primitive ("registros?")  is-registro-prim)
@@ -442,6 +460,14 @@
       (b32-multi () (multi-base arg args 32))
       )))
 
+(define (parse-type-op id)
+  (cond
+    [(eq? id "and") (and-op)]
+    [(eq? id 'or) (or-op)]
+    [(eq? id 'not) (not-op)]
+    [(eq? id 'xor) (xor-op)]
+    [else (eopl:error 'parse-type-op "Operador lógico desconocido: ~s" id)]))
+    
 ;apply-primitive: <primitiva> <list-of-expression> -> numero
 (define apply-primitive
   (lambda (prim args env)
@@ -1014,7 +1040,12 @@
 (define (connect-circuits c1 c2 input-to-replace env)
   (let* ([gates1 (extract-gates c1)]
          [last-id (gate-id (last gates1))]
-         [gates2 (update-gates (extract-gates c2) input-to-replace last-id)])
+         [gates2 (update-gates (extract-gates c2) input-to-replace last-id)]
+         [k (eval-circuit c1 env)]
+         [m (eval-circuit c2 env)]
+         [keys (list "circuto1" "circuito2")]
+         [values (list k m)]
+         )
     (make-circuit (append gates1 gates2))))
 
 ;; Funcion: extract-gates
@@ -1153,7 +1184,66 @@ scan&parse
 ; crearRegistro()
 ; setRegistro(crear-registro({x = 1; y = 2}), x, 5)
 ;var A = True, c1 = circuit ( (gate G1 (not) (A)) ) in evalCircuit(c1) 
+<<<<<<< HEAD
 ;var A = True, B = True, c1 = circuit ( (gate G2 (and) (A B)) ) in evalCircuit(c1) 
+=======
+;var A = True, B = True, c1 = circuit ( (gate G2 (and) (A B)) ) in evalCircuit(c1)
+
+#|
+var 
+A = True,
+B = True,
+c1 = circuit ( (gate G2 (and) (A B)) )
+in
+var
+c2 = circuit (
+    (gate G1 (or) (A B)) ;
+    (gate G2 (and) (A B)) ;
+    (gate G3 (not) (G2)) ;
+    (gate G4 (and) (G1 G3))
+  )
+in
+var
+c3 = connectCircuits (c1,c2,G1)
+in
+evalCircuit(c3) 
+
+Ejemplo Sustentacion Circuitos
+ var
+A = True,
+B = True,
+//Circuito 1 (sección 3.2)
+c1 = circuit (
+(gate G2 (and) (A B))
+),
+
+//Circuito 2 (sección 3.3)
+c2 = circuit (
+(gate G1 (or) (A B)) ;
+(gate G2 (and) (A B)) ;
+(gate G3 (not) (G2)) ;
+(gate G4 (and) (G1 G3))
+)
+in 
+var
+// Conectar salida de c1 a una entrada de c2
+con = connectCircuits(c1, c2, G1),
+
+// Unir simplemente las compuertas sin conexión
+un = mergeCircuits(c1, c2, "or", G6)
+in
+crearRegistro(
+["Circuito1" : "Circuito2"], [con : un])
+
+
+
+class Person:
+    def __init__(self, fname, lname):
+        self.firstname = fname
+        self.lastname = lname
+|#
+
+>>>>>>> parent of 27a93d1 (fixed rec funtion)
 
 ;var r = crear-registro({a = 1; b = 2; c = 3}) in
 ;begin set-registro(r, b, 42); ref-registro(r, b) end
