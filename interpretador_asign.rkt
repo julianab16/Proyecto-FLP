@@ -76,7 +76,10 @@
 
     ; Definiciones
 <<<<<<< HEAD
+<<<<<<< HEAD
 
+=======
+>>>>>>> parent of 27a93d1 (fixed rec funtion)
 =======
 >>>>>>> parent of 27a93d1 (fixed rec funtion)
     (expression ("var" (separated-list identifier "=" expression ",") "in" expression)
@@ -86,7 +89,10 @@
     (expression ("rec" (arbno identifier "(" (separated-list identifier ",") ")" "=" expression)  "in" expression) 
                 rec-exp)
 <<<<<<< HEAD
+<<<<<<< HEAD
 
+=======
+>>>>>>> parent of 27a93d1 (fixed rec funtion)
 =======
 >>>>>>> parent of 27a93d1 (fixed rec funtion)
     
@@ -96,6 +102,7 @@
     (expression ("x16" "(" (arbno number) ")") num-hex-exp)
     (expression ("x32" "(" (arbno number) ")") num-base32-exp)
     (expression (cadena) string-exp)
+<<<<<<< HEAD
 <<<<<<< HEAD
      
  
@@ -108,6 +115,10 @@
 =======
  
     ; Const datos predefinidos
+=======
+ 
+    ; Const datos predefinidos
+>>>>>>> parent of 27a93d1 (fixed rec funtion)
     (expression ("[" (separated-list expression ":") "]") list-exp)
     (expression ("tupla[" (separated-list expression ":") "]") tuple-exp)
   
@@ -144,7 +155,11 @@
 
     ; Registros
 <<<<<<< HEAD
+<<<<<<< HEAD
     
+=======
+
+>>>>>>> parent of 27a93d1 (fixed rec funtion)
 =======
 
 >>>>>>> parent of 27a93d1 (fixed rec funtion)
