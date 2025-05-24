@@ -326,8 +326,9 @@
                  (eval-expression body (extended-env-record vars (list->vector args) env))))
 
       (const-exp (ids rands body)
-                (let ((args (map (lambda (x) (const-target (eval-expression x env))) rands)))
-                   (eval-expression body (extended-env-record ids (list->vector args) env))))
+                 (let ((args (map (lambda (x) (const-target (eval-expression x env))) rands)))
+                   (target-to-value
+                    (eval-expression body (extended-env-record ids (list->vector args) env)))))
       
       (rec-exp (proc-names idss bodies body)
                (eval-expression body (extend-env-recursively proc-names idss bodies env)))
@@ -664,28 +665,6 @@
 
 ;*******************************************************************************************
 ;Referencias
-(lambda (ref val)
-    (cases reference ref
-      (a-ref (pos vec)
-        (let ((target (vector-ref vec pos)))
-          (if (const-target? target)
-              (eopl:error "No se puede modificar una constante.")
-              (vector-set! vec pos val))))))
-
-; Función para sacar el valor de un target
-(define target-to-value
-  (lambda (t)
-    (cases target t
-      (direct-target (v) v)
-      (const-target (v) v)
-      (indirect-target (v) v))))
-
-; Función para determinar si es un target de tipo constante
-(define (const-target? x)
-  (and (target? x) (cases target x
-    (const-target (v) #t)
-    (direct-target (v) #f)
-    (indirect-target (v) #f))))
 
 (define expval?
   (lambda (x)
@@ -719,11 +698,30 @@
   (lambda (ref val)
     (primitive-setref! ref val)))
 
+
 (define primitive-setref!
   (lambda (ref val)
     (cases reference ref
       (a-ref (pos vec)
-            (vector-set! vec pos val)))))
+        (let ((target (vector-ref vec pos)))
+          (if (const-target? target)
+              (eopl:error "No se puede modificar una constante.")
+              (vector-set! vec pos val)))))))
+
+; Función para sacar el valor de un target
+(define target-to-value
+  (lambda (t)
+    (cases target t
+      (direct-target (v) v)
+      (const-target (v) v)
+      (indirect-target (v) v))))
+
+; Función para determinar si es un target de tipo constante
+(define (const-target? x)
+  (and (target? x) (cases target x
+    (const-target (v) #t)
+    (direct-target (v) #f)
+    (indirect-target (v) #f))))
 
 ;****************************************************************************************
 ;Funciones Auxiliares
@@ -1438,18 +1436,20 @@ class Person:
 ;var r = crear-registro({a = 1; b = 2; c = 3}) in
 ;begin set-registro(r, b, 42); ref-registro(r, b) end
 
-;;  begin
-;;  var r = 9 in 
-;;  begin
-;;  set r = 8;
-;;  print (r)
-;;  end end
+#|  begin
+    var r = 9 in 
+    begin
+    set r = 8;
+    print (r)
+    end end
+|#
 
 
-;;  begin
-;;  const r = 9 in 
-;;  begin
-;;  set r = 8;
-;;  print (r)
-;;  end end
+#|  begin
+    const r = 9 in 
+    begin
+    set r = 8;
+    print (r)
+    end end
+|#
 (interpretador)
