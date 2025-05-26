@@ -291,10 +291,11 @@
       (num-oct-exp (number) number)
       (num-hex-exp (number) number)
       (num-base32-exp (number) number)
+
       (id-exp (id args) 
         (let ((val (apply-env env id)))
           (maybe-calls val args env)))
-
+      
       (string-exp (cadena) (substring cadena 1 (- (string-length cadena) 1)))
       (primapp-num-exp (exp prim exps)
         (let ((arg (eval-expression exp env))
@@ -325,10 +326,10 @@
                (let ((args (eval-rands rands env))) 
                  (eval-expression body (extended-env-record vars (list->vector args) env))))
       
-
       (const-exp (ids rands body)
-                 (let ((args (map (lambda (x) (const-target (eval-expression x env))) rands)))
-                    (eval-expression body (extended-env-record ids (list->vector args) env))))
+                (let ((args (map (lambda (x) (const-target (eval-expression x env))) rands)))
+                  (target-to-value
+                   (eval-expression body (extended-env-record ids (list->vector args) env)))))
       
       (rec-exp (proc-names idss bodies body)
                (eval-expression body (extend-env-recursively proc-names idss bodies env)))
@@ -412,9 +413,9 @@
       
       (print-exp (exp)
           (let ((val (eval-expression exp env)))
-              (newline)
-              (if (const-target? val) (target-to-value val) (display val))
-              'fin))
+            (display val)
+            (newline)
+            'fin))
     )))
 
 (define maybe-calls
@@ -444,7 +445,7 @@
       (substract-prim () (- arg args))
       (mult-prim () (* arg args))
       (div-prim () (/ arg args))
-      (mod-prim () (modulo arg args))
+      (mod-prim () (real-modulo arg args))
       ; base octal
       (oct-suma () (suma-base arg args 8))
       (oct-resta () (resta-base arg args 8))
@@ -568,6 +569,10 @@
       (longitud-prim () (string-length (car args)))
       
       )))
+
+; funcion para evaluar modulo de floantes
+(define (real-modulo a b)
+  (- a (* b (floor (/ a b)))))
 
 ;true-value?: determina si un valor dado corresponde a un valor booleano falso o verdadero
 (define true-value?
@@ -710,7 +715,7 @@
   (lambda (t)
     (cases target t
       (direct-target (v) v)
-      (const-target (v) (display v))
+      (const-target (v) v)
       (indirect-target (v) v))))
 
 ; Función para determinar si es un target de tipo constante
@@ -1455,7 +1460,14 @@ class Person:
 |#
 
 
+<<<<<<< HEAD
 ; Punto 3
+=======
+;var r = crear-registro({a = 1; b = 2; c = 3}) in
+;begin set-registro(r, b, 42); ref-registro(r, b) end
+
+; Ejemplo 3
+>>>>>>> db22f35c5ffb32f27ab3ef26ce0b120f7d738074
 #|
 begin
 var r = 9 in 
@@ -1465,25 +1477,68 @@ print (r)
 end end
 |#
 
-; Punto 4
+; Ejemplo 4
 #|
 begin
-const b = 7, d = 2 in 
-begin
-print (b);
-print(d)
-end
+const b = 7 in
+b
 end
 |#
 
 #|
 begin
-const a = 4 in
-| set a = (a * 3),
+const a = 6 in
+| set a = 3,
 print (a) |
 end
 |#
 
+; Ejemplo 5
+#|
+var c = 8,
+    f = 3.7,
+    o = x8(3 4),
+    h = x16 (4 1),
+    b = x32(5 6) in
+begin
+//Primitivas constantes
+print (set c = sub1(c));
+print (set c = add1(c));
+print (set c = (((c + 2) * (c - 4)) / 10));
+print (set c = (c % 2));
+
+//Primitivas con flotantes
+print (set f = sub1(f));
+print (set f = add1(f));
+print (set f = (((f * 0.3) + (f / 2) ) - 5.5));
+print (set f = (f % 3));
+
+// Primitivas con numeros base 8
+print (set o = sub1(x8)(o));
+print (set o = add1(x8)(o));
+print (set o = (x8(2 1) +(x8) o));
+print (set o = (o -(x8) x8(5 1)));
+print (set o = (x8(2) *(x8) o));
+print (baseToDecimal(o;8));
+
+//Primitivas con hexadecimales
+print (set h = sub1(x16)(h));
+print (set h = add1(x16)(h));
+print (set h = (x16(2 6) +(x16) h));
+print (set h = (h -(x16) x16(3 5)));
+print (set h = (x16(7) *(x16) h));
+print (baseToDecimal(h;16));
+
+//Primitivas con numeros base 32
+
+print (set b = sub1(x32)(b));
+print (set b = add1(x32)(b));
+print (set b = (x32(4 7) +(x32) b));
+print (set b = (b -(x32) x32(6 1)));
+print (set b = (x32(2) *(x32) b));
+print (baseToDecimal(b;32))
+end
+|#
 
 #|  begin
     const r = 9 in 
