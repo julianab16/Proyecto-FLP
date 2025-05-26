@@ -324,6 +324,7 @@
       (var-exp (vars rands body)
                (let ((args (eval-rands rands env))) 
                  (eval-expression body (extended-env-record vars (list->vector args) env))))
+      
 
       (const-exp (ids rands body)
                  (let ((args (map (lambda (x) (const-target (eval-expression x env))) rands)))
@@ -353,6 +354,7 @@
                         (loop (eval-expression (car exps) 
                                                env)
                               (cdr exps)))))
+
       
       (expr-bool-exp (exp) 
                      (eval-exp-bool exp env))
@@ -411,11 +413,23 @@
         
 
       (exp-circuit (gate_list) gate_list)
+      
       (print-exp (exp)
           (let ((val (eval-expression exp env)))
             (display val)
             (newline)
             'fin))
+
+   
+
+
+     
+
+
+    
+
+      
+
     )))
 
 #|
@@ -646,11 +660,19 @@
         (cons next (loop (+ 1 next)))))))
 
 ;función que busca un símbolo en un ambiente
+;; (define apply-env
+;;   (lambda (env sym)
+;;     (deref (apply-env-ref env sym))))
+;;      ;(apply-env-ref env sym)))
+;;     ;env))
+
 (define apply-env
   (lambda (env sym)
-    (deref (apply-env-ref env sym))))
-     ;(apply-env-ref env sym)))
-    ;env))
+    (let ((val (deref (apply-env-ref env sym))))
+      (if (const-target? val) (target-to-value val) val))))  ; Extrae el valor si es un `const-target`
+
+
+
 (define apply-env-ref
   (lambda (env sym)
     (cases environment env
@@ -669,6 +691,7 @@
 (define expval?
   (lambda (x)
     (or (number? x) (procval? x)  (string? x) (boolean? x))))
+
 
 (define ref-to-direct-target?
   (lambda (x)
@@ -707,6 +730,7 @@
           (if (const-target? target)
               (eopl:error "No se puede modificar una constante.")
               (vector-set! vec pos val)))))))
+
 
 ; Función para sacar el valor de un target
 (define target-to-value
@@ -1436,20 +1460,37 @@ class Person:
 ;var r = crear-registro({a = 1; b = 2; c = 3}) in
 ;begin set-registro(r, b, 42); ref-registro(r, b) end
 
-#|  begin
-    var r = 9 in 
-    begin
-    set r = 8;
-    print (r)
-    end end
+; Punto 3
+#|
+begin
+var r = 9 in 
+begin
+set r = (r + 5);
+print (r)
+end end
+|#
+
+; Punto 4
+#|
+begin
+const b = 7, d = 2 in 
+begin
+print (b);
+print(d)
+end
+end
+|#
+
+#|
+begin
+const a = 4 in
+begin
+set a = (a * 3);
+print (a)
+end
+end
 |#
 
 
-#|  begin
-    const r = 9 in 
-    begin
-    set r = 8;
-    print (r)
-    end end
-|#
+
 (interpretador)
