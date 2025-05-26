@@ -324,11 +324,11 @@
       (var-exp (vars rands body)
                (let ((args (eval-rands rands env))) 
                  (eval-expression body (extended-env-record vars (list->vector args) env))))
+      
 
       (const-exp (ids rands body)
                  (let ((args (map (lambda (x) (const-target (eval-expression x env))) rands)))
-                   (target-to-value
-                    (eval-expression body (extended-env-record ids (list->vector args) env)))))
+                    (eval-expression body (extended-env-record ids (list->vector args) env))))
       
       (rec-exp (proc-names idss bodies body)
                (eval-expression body (extend-env-recursively proc-names idss bodies env)))
@@ -409,22 +409,13 @@
         
 
       (exp-circuit (gate_list) gate_list)
+      
       (print-exp (exp)
           (let ((val (eval-expression exp env)))
-            (newline)
-            (if (const-target? val) val (display val))
-            'fin))
+              (newline)
+              (if (const-target? val) (target-to-value val) (display val))
+              'fin))
     )))
-
-#|
-(define rec-call
-  (lambda (calls env)
-    (cases maybe-call calls
-      (call-args (proc-id rands)
-        (let* ([proc-val (apply-env env proc-id)]
-               [arg-vals (eval-rands rands env)])
-          (apply-procedure proc-val arg-vals)))
-      (empty-call ())))) |#
 
 (define maybe-calls
   (lambda (proc-id calls env)
@@ -644,11 +635,17 @@
         (cons next (loop (+ 1 next)))))))
 
 ;función que busca un símbolo en un ambiente
+;; (define apply-env
+;;   (lambda (env sym)
+;;     (deref (apply-env-ref env sym))))
+;;      ;(apply-env-ref env sym)))
+;;     ;env))
+
 (define apply-env
   (lambda (env sym)
-    (deref (apply-env-ref env sym))))
-     ;(apply-env-ref env sym)))
-    ;env))
+    (let ((val (deref (apply-env-ref env sym))))
+      (if (const-target? val) val (deref (apply-env-ref env sym))))))  ; Extrae el valor si es un `const-target`
+
 (define apply-env-ref
   (lambda (env sym)
     (cases environment env
@@ -667,6 +664,7 @@
 (define expval?
   (lambda (x)
     (or (number? x) (procval? x)  (string? x) (boolean? x))))
+
 
 (define ref-to-direct-target?
   (lambda (x)
@@ -706,12 +704,13 @@
               (eopl:error "No se puede modificar una constante.")
               (vector-set! vec pos val)))))))
 
+
 ; Función para sacar el valor de un target
 (define target-to-value
   (lambda (t)
     (cases target t
       (direct-target (v) v)
-      (const-target (v) v)
+      (const-target (v) (display v))
       (indirect-target (v) v))))
 
 ; Función para determinar si es un target de tipo constante
@@ -1394,7 +1393,6 @@ crearRegistro(
 ["Circuito1", "Circuito2"], [con, un])
 
 
-
 Ejemplo 8
 var
   x = [2, 4, 6, 8],
@@ -1415,12 +1413,35 @@ in
       nuevo = F4(w)
     in
       print(crearLista([x, y, z, w]))
+Ejemplo 6
+
+begin
+  print(<(2, 5));        
+  print(>(5, 2));        
+  print(<=(3, 3));        
+  print(>=(4, 4));       
+  print(==(7, 7));        
+  print(!=(6, 9));        
+
+  print(<(2.1, 5.9));   
+  print(>(3.5, 2.4));    
+  print(<=(4.5, 4.5));    
+  print(>=(7.8, 1.1));    
+  print(==(3.14, 3.15));  
+  print(!=(1.1, 2.2));    
+
+  print(==(False, False));
+  print(!=(True, False))
+end
+
 
 Ejemplo 9
 
+if ==([1,2,3,4,7,9],[]) : list else : 0
+
 rec 
   factorial(n) = if == (n, 0): 1 else : (n * factorial((n - 1))) 
-  map(list) = if vacio?(list) : list else : append([factorial(cabeza(list))], [map(cola(list))])
+  map(list) = if ==(list,[]) : list else : append([factorial(cabeza(list))], [map(cola(list))])
   registroFactorial(list) = crearRegistro(["valores", "factoriales"], [tupla[list],map(list)])
   in 
     registroFactorial([1,2,3,4,7,9])
@@ -1436,8 +1457,6 @@ while < (x, 5) do
   isPar?(a) = ==((a % 2), 0)
   in print(isPar?(x)) |
  done
- 
-
 
 
 class Person:
@@ -1450,21 +1469,42 @@ class Person:
 ;var r = crear-registro({a = 1; b = 2; c = 3}) in
 ;begin set-registro(r, b, 42); ref-registro(r, b) end
 
-#|  begin
-    var r = 9 in 
-    begin
-    set r = 8;
-    print (r)
-    end end
+; Punto 3
+#|
+begin
+var r = 9 in 
+begin
+set r = (r + 5);
+print (r)
+end end
+|#
+
+; Punto 4
+#|
+begin
+const b = 7, d = 2 in 
+begin
+print (b);
+print(d)
+end
+end
+|#
+
+#|
+begin
+const a = 4 in
+| set a = (a * 3),
+print (a) |
+end
 |#
 
 
 #|  begin
     const r = 9 in 
-    begin
-    set r = 8;
+    |
+    set r = 8,
     print (r)
-    end end
+    | end
 
     const r = 9 in 
     print (r)
@@ -1474,5 +1514,6 @@ class Person:
     r
     end
 |#
+
 
 (interpretador)
