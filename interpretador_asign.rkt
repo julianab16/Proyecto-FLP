@@ -45,7 +45,7 @@
   (comment
    ("//" (arbno (not #\newline))) skip)
    (identifier
-  ((or letter "_") (arbno (or letter digit "_"))) symbol)
+  ((or letter "_") (arbno (or letter digit "?"))) symbol)
   (number
    (digit (arbno digit)) number)
   (number
@@ -115,10 +115,10 @@
   
     ; Estructuras de control
     (expression ("begin" expression (arbno ";" expression) "end") begin-exp) 
-    (expression ("if" expression ":" expression "else" ":" expression) if-exp) 
-    (expression ("while" expression "do" expression "done" ) while-exp)
+    (expression ("if" expr-bool ":" expression "else" ":" expression) if-exp) 
+    (expression ("while" expr-bool "do" expression "done" ) while-exp)
     (expression ("for" identifier "in" expression "do" expression "done") for-exp)
-    (expression ("" expression (arbno "," expression)"") n-exp)
+    (expression ("|" expression (arbno "," expression)"|") n-exp)
 
     ; Registros
     (expression ("{" (separated-list expression "=" expression ";") "}") register-exp)
@@ -335,8 +335,8 @@
                (eval-expression body (extend-env-recursively proc-names idss bodies env)))
         
       (if-exp (test-exp true-exp false-exp)
-              (true-value? (eval-expression test-exp env))
-              (if (true-value? (eval-expression test-exp env))
+              (true-value? (eval-exp-bool test-exp env))
+              (if (true-value? (eval-exp-bool test-exp env))
                   (eval-expression true-exp env)
                   (eval-expression false-exp env))
               )
@@ -357,23 +357,23 @@
 
       
       (expr-bool-exp (exp) 
-                     (eval-exp-bool exp env))
+                     ( eval-exp-bool exp env))
       
       (while-exp (exp1 exp2)
-                  (let loop ((test (eval-expression exp1 env)))
+                  (let loop ((test (eval-exp-bool exp1 env)))
                     (if (true-value? test)
                         (begin
                           (eval-expression exp2 env)
                           (loop (eval-exp-bool exp1 env)))
                         'fin))
                 )
-      (n-exp (rator rands)
-               (let ((proc (eval-expression rator env))
-                     (args (eval-rands rands env)))
-                 (if (procval? proc)
-                     (apply-procedure proc args)
-                     (eopl:error 'eval-expression
-                                 "Attempt to apply non-procedure ~s" proc))))
+      (n-exp (exp exps) 
+                 (let loop ((acc (eval-expression exp env))
+                            (exps exps))
+                   (if (null? exps) 
+                       acc
+                       (loop (eval-expression (car exps) env)
+                             (cdr exps)))))
 
       (for-exp (id iterable-exp body-exp)
         (let ((iterable (eval-expression iterable-exp env)))
@@ -1353,35 +1353,22 @@ scan&parse
 ;set x = + (2, 3) ; ⇒ 5
 
 ;var x = 5 in while > (x, 0) do begin set x = (x - 1); print (x) end done
+;var x = 5 in while > (x, 0) do |set x = (x - 1) , print(x)| done
 
 ; Crear un registro
 ;registros?({x = 1; y = 2})
 
-; crearRegistro([x : "y"], [1 : 2])
-; setRegistro(crear-registro(), x, 5)
+; crearRegistro([x , "y"], [1 , 2])
+
 ;var A = True, c1 = circuit ( (gate G1 (not) (A)) ) in evalCircuit(c1) 
 ;var A = True, B = True, c1 = circuit ( (gate G2 (and) (A B)) ) in evalCircuit(c1)
 
-#|
-var 
-A = True,
-B = True,
-c1 = circuit ( (gate G2 (and) (A B)) )
-in
-var
-c2 = circuit (
-    (gate G1 (or) (A B)) ;
-    (gate G2 (and) (A B)) ;
-    (gate G3 (not) (G2)) ;
-    (gate G4 (and) (G1 G3))
-  )
-in
-var
-c3 = connectCircuits (c1,c2,G1)
-in
-evalCircuit(c3) 
+#| 
 
-Ejemplo Sustentacion Circuitos
+Ejemplo Sustentacion 
+
+Circuitos
+
  var
 A = True,
 B = True,
@@ -1406,7 +1393,7 @@ con = connectCircuits(c1, c2, G1),
 un = mergeCircuits(c1, c2, "or", G6)
 in
 crearRegistro(
-["Circuito1" : "Circuito2"], [con : un])
+["Circuito1" , "Circuito2"], [con , un])
 
 var
 A = True,
@@ -1433,21 +1420,50 @@ crearRegistro(
 ["Circuito1", "Circuito2"], [con, un])
 
 
-var x = [2,4,6,8], y = 100, z = {"nombre" = "juliana"; "edad" = 2} 
+
+Ejemplo 8
+var
+  x = [2, 4, 6, 8],
+  y = 100,
+  z = {"nombre" = "julia"; "edad" = 20},
+  w = "Original"
 in
-rec F1(a) = setLista(a, 1, "hola")
-F2(b) = setLista(y, 0, b)
-F3(c) = setRegistro(c, "nombre", "Juliana") 
-in
-| F1(x), F2(y), F3(z) |
+  rec
+    F1(a) = setList(a, 1, "hola")
+    F2(b) = 999
+    F3(c) = setRegistro(c, "nombre", "Juliana")
+    F4(d) = "cambiada"
+  in
+    var
+      nuevaLista = F1(x),
+      nuevaLista2 = F2(y),
+      nuevoRegistro = F3(z),
+      nuevo = F4(w)
+    in
+      print(crearLista([x, y, z, w]))
+
+Ejemplo 9
+
+rec 
+  factorial(n) = if == (n, 0): 1 else : (n * factorial((n - 1))) 
+  map(list) = if vacio?(list) : list else : append([factorial(cabeza(list))], [map(cola(list))])
+  registroFactorial(list) = crearRegistro(["valores", "factoriales"], [tupla[list],map(list)])
+  in 
+    registroFactorial([1,2,3,4,7,9])
 
 
-
-rec factorial(n) = if == (n, 0): 1 else : (n * factorial((n - 1))) 
-map(list) = if vacio?(list) : list else : append([factorial(cabeza(list))], [map(cola(list))])
-registroFactorial(list) = crearRegistro(["valores", "factoriales"], [tupla[list],map(list)])
+// Ejemplo 10
+var 
+x = 0 
 in 
-registroFactorial([1,2,3,4,7,9])
+while < (x, 5) do
+| set x = (x + 1),
+  rec 
+  isPar?(a) = ==((a % 2), 0)
+  in print(isPar?(x)) |
+ done
+ 
+
 
 
 class Person:
