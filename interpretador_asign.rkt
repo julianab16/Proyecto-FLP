@@ -350,9 +350,7 @@
                              (exps exps))
                     (if (null? exps) 
                         acc
-                        (loop (eval-expression (car exps) 
-                                               env)
-                              (cdr exps)))))
+                        (loop (eval-expression (car exps) env) (cdr exps)))))
       
       (expr-bool-exp (exp) 
                      ( eval-exp-bool exp env))
@@ -413,8 +411,8 @@
       (exp-circuit (gate_list) gate_list)
       (print-exp (exp)
           (let ((val (eval-expression exp env)))
-            (display val)
             (newline)
+            (if (const-target? val) val (display val))
             'fin))
     )))
 
@@ -1467,5 +1465,14 @@ class Person:
     set r = 8;
     print (r)
     end end
+
+    const r = 9 in 
+    print (r)
+
+    begin
+    const r = 9 in 
+    r
+    end
 |#
+
 (interpretador)
