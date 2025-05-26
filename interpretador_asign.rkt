@@ -1310,17 +1310,6 @@ just-scan
 scan&parse
 ;(display (scan&parse "mergeCircuits(c1, c2, and, G3)"))
 ;(display (show-the-datatypes))
-;(newline)
-;== (3, 3)             ; ⇒ #t
-;!= (3, 4)              ; ⇒ #t
-;> (5, 2)            ; ⇒ #t
-;>= (5, 5)              ; ⇒ #t
-;<= (3, 8)             ; ⇒ #t
-
-;not (and (True , False))  ; ⇒ #t
-;not (or (True , False)) ; ⇒ #f
-;not (> (x , 5)) ; ⇒ #t
-;and (> (x , 0) , < (x , 10)) ; ⇒ #t
 
 ;if >=((2 + 3) , 5) : (2 * 2) else : 0 ; ⇒ 4
 ;set x = + (2, 3) ; ⇒ 5
@@ -1452,10 +1441,10 @@ var
 x = 0 
 in 
 while < (x, 5) do
-| set x = (x + 1),
+begin set x = (x + 1);
   rec 
   isPar?(a) = ==((a % 2), 0)
-  in print(isPar?(x)) |
+  in print(isPar?(x)) end
  done
 
 
@@ -1465,9 +1454,6 @@ class Person:
         self.lastname = lname
 |#
 
-
-;var r = crear-registro({a = 1; b = 2; c = 3}) in
-;begin set-registro(r, b, 42); ref-registro(r, b) end
 
 ; Punto 3
 #|
