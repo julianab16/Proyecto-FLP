@@ -118,7 +118,6 @@
     (expression ("if" expr-bool ":" expression "else" ":" expression) if-exp) 
     (expression ("while" expr-bool "do" expression "done" ) while-exp)
     (expression ("for" identifier "in" expression "do" expression "done") for-exp)
-    (expression ("|" expression (arbno "," expression)"|") n-exp)
 
     ; Registros
     (expression ("{" (separated-list expression "=" expression ";") "}") register-exp)
@@ -364,13 +363,6 @@
                           (loop (eval-exp-bool exp1 env)))
                         'fin))
                 )
-      (n-exp (exp exps) 
-                 (let loop ((acc (eval-expression exp env))
-                            (exps exps))
-                   (if (null? exps) 
-                       acc
-                       (loop (eval-expression (car exps) env)
-                             (cdr exps)))))
 
       (for-exp (id iterable-exp body-exp)
         (let ((iterable (eval-expression iterable-exp env)))
@@ -639,13 +631,6 @@
       (if (>= next end) '()
         (cons next (loop (+ 1 next)))))))
 
-;función que busca un símbolo en un ambiente
-;; (define apply-env
-;;   (lambda (env sym)
-;;     (deref (apply-env-ref env sym))))
-;;      ;(apply-env-ref env sym)))
-;;     ;env))
-
 (define apply-env
   (lambda (env sym)
     (let ((val (deref (apply-env-ref env sym))))
@@ -669,7 +654,6 @@
 (define expval?
   (lambda (x)
     (or (number? x) (procval? x)  (string? x) (boolean? x))))
-
 
 (define ref-to-direct-target?
   (lambda (x)
@@ -1309,32 +1293,183 @@
     (set! the-class-env (cons class the-class-env))))
 
 ;******************************************************************************************
-;Pruebas
 
 just-scan
 scan&parse
 ;(display (scan&parse "mergeCircuits(c1, c2, and, G3)"))
 ;(display (show-the-datatypes))
 
-;if >=((2 + 3) , 5) : (2 * 2) else : 0 ; ⇒ 4
-;set x = + (2, 3) ; ⇒ 5
+#| SUSTENCIA EJEMPLOS
 
-;var x = 5 in while > (x, 0) do begin set x = (x - 1); print (x) end done
-;var x = 5 in while > (x, 0) do |set x = (x - 1) , print(x)| done
+ Punto 3
+;var r = crear-registro({a = 1; b = 2; c = 3}) in
+;begin set-registro(r, b, 42); ref-registro(r, b) end
 
-; Crear un registro
-;registros?({x = 1; y = 2})
+// Ejemplo 3
 
-; crearRegistro([x , "y"], [1 , 2])
+begin
+  var r = 9 in 
+  begin
+    set r = (r + 5);
+    print (r)
+  end
+end
 
-;var A = True, c1 = circuit ( (gate G1 (not) (A)) ) in evalCircuit(c1) 
-;var A = True, B = True, c1 = circuit ( (gate G2 (and) (A B)) ) in evalCircuit(c1)
+// Ejemplo 4
 
-#| 
+begin
+  const b = 7 in
+  b
+end
 
-Ejemplo Sustentacion 
+begin
+  const a = 6 in
+    begin set a = 3;
+    print (a) end
+end
 
-Circuitos
+// Ejemplo 5
+
+var c = 8,
+    f = 3.7,
+    o = x8(3 4),
+    h = x16 (4 1),
+    b = x32(5 6) in
+begin
+  //Primitivas constantes
+  print (set c = sub1(c));
+  print (set c = add1(c));
+  print (set c = (((c + 2) * (c - 4)) / 10));
+  print (set c = (c % 2));
+
+  //Primitivas con flotantes
+  print (set f = sub1(f));
+  print (set f = add1(f));
+  print (set f = (((f * 0.3) + (f / 2) ) - 5.5));
+  print (set f = (f % 3));
+
+  // Primitivas con numeros base 8
+  print (set o = sub1(x8)(o));
+  print (set o = add1(x8)(o));
+  print (set o = (x8(2 1) +(x8) o));
+  print (set o = (o -(x8) x8(5 1)));
+  print (set o = (x8(2) *(x8) o));
+  print (baseToDecimal(o;8));
+
+  //Primitivas con hexadecimales
+  print (set h = sub1(x16)(h));
+  print (set h = add1(x16)(h));
+  print (set h = (x16(2 6) +(x16) h));
+  print (set h = (h -(x16) x16(3 5)));
+  print (set h = (x16(7) *(x16) h));
+  print (baseToDecimal(h;16));
+
+  //Primitivas con numeros base 32
+
+  print (set b = sub1(x32)(b));
+  print (set b = add1(x32)(b));
+  print (set b = (x32(4 7) +(x32) b));
+  print (set b = (b -(x32) x32(6 1)));
+  print (set b = (x32(2) *(x32) b));
+  print (baseToDecimal(b;32))
+end
+    
+// Ejemplo 6
+
+begin
+  // Comparaciones con enteros
+  print(<(2, 5));        
+  print(>(5, 2));        
+  print(<=(3, 3));        
+  print(>=(4, 4));       
+  print(==(7, 7));        
+  print(!=(6, 9)); 
+
+  // Comparaciones con flotantes
+  print(<(2.1, 5.9));   
+  print(>(3.5, 2.4));    
+  print(<=(4.5, 4.5));    
+  print(>=(7.8, 1.1));    
+  print(==(3.14, 3.15));  
+  print(!=(1.1, 2.2));
+
+  // Comparaciones con booleanos
+  print(==(False, False));
+  print(!=(True, True));
+
+  // Comparaciones con hexadecimal
+
+  // Números base 8
+  print(<(baseToDecimal(x8(1 2);8), baseToDecimal(x8(2 3);8))); 
+  print(>(baseToDecimal(x8(1 2);8), baseToDecimal(x8(2 3);8)));
+  print(==(baseToDecimal(x8(7 7);8), baseToDecimal(x8(7 7);8)));
+  print(!=(baseToDecimal(x8(7 7);8), baseToDecimal(x8(7 7);8)));  
+  print(>=(baseToDecimal(x8(3 4);8), baseToDecimal(x8(2 1);8)));
+  print(<=(baseToDecimal(x8(3 4);8), baseToDecimal(x8(2 1);8)));
+
+  // Números base 16
+  print(<(baseToDecimal(x16(1 2);16), baseToDecimal(x16(2 3);16)));   
+  print(>(baseToDecimal(x16(3 4);16), baseToDecimal(x16(2 1);16)));  
+  print(==(baseToDecimal(x16(1 2);16), baseToDecimal(x16(1 2);16))); 
+  print(!=(baseToDecimal(x16(1 2);16), baseToDecimal(x16(2 3);16)));  
+
+  // Números base 32
+  print(<(baseToDecimal(x32(1 2);32), baseToDecimal(x32(2 3);32)));
+  print(>(baseToDecimal(x32(1 2);32), baseToDecimal(x32(2 3);32)));   
+  print(==(baseToDecimal(x32(7 7);32), baseToDecimal(x32(7 7);32)));
+  print(!=(baseToDecimal(x32(7 7);32), baseToDecimal(x32(7 7);32)));  
+  print(>=(baseToDecimal(x32(3 4);32), baseToDecimal(x32(2 1);32)));
+  print(<=(baseToDecimal(x32(3 4);32), baseToDecimal(x32(2 1);32)))  
+end
+
+// Ejemplo 8
+
+var
+  x = [2, 4, 6, 8],
+  y = 100,
+  z = {"nombre" = "julia"; "edad" = 20},
+  w = "Original"
+in
+  rec
+    F1(a) = setList(a, 1, "hola")
+    F2(b) = 999
+    F3(c) = setRegistro(c, "nombre", "Juliana")
+    F4(d) = "cambiada"
+  in
+    var
+      nuevaLista = F1(x),
+      nuevaLista2 = F2(y),
+      nuevoRegistro = F3(z),
+      nuevo = F4(w)
+    in
+      print(crearLista([x, y, z, w]))
+
+// Ejemplo 9
+
+rec 
+  factorial(n) = if == (n, 0): 1 else : (n * factorial((n - 1))) 
+  map(list) = if ==(list,[]) : list else : append([factorial(cabeza(list))], [map(cola(list))])
+  registroFactorial(list) = crearRegistro(["valores", "factoriales"], [tupla[list],map(list)])
+  in 
+    registroFactorial([1,2,3,4,7,9])
+
+
+// Ejemplo 10
+Falta el for con tuplas
+
+var 
+x = 0 
+in 
+while < (x, 5) do
+begin set x = (x + 1);
+  rec 
+  isPar?(a) = ==((a % 2), 0)
+  in print(isPar?(x)) end
+ done
+
+// Ejemplo 11
+
+// Punto 1
 
  var
 A = True,
@@ -1362,6 +1497,8 @@ in
 crearRegistro(
 ["Circuito1" , "Circuito2"], [con , un])
 
+// Punto 2
+
 var
 A = True,
 B = True,
@@ -1387,158 +1524,17 @@ crearRegistro(
 ["Circuito1", "Circuito2"], [con, un])
 
 
-Ejemplo 8
-var
-  x = [2, 4, 6, 8],
-  y = 100,
-  z = {"nombre" = "julia"; "edad" = 20},
-  w = "Original"
-in
-  rec
-    F1(a) = setList(a, 1, "hola")
-    F2(b) = 999
-    F3(c) = setRegistro(c, "nombre", "Juliana")
-    F4(d) = "cambiada"
-  in
-    var
-      nuevaLista = F1(x),
-      nuevaLista2 = F2(y),
-      nuevoRegistro = F3(z),
-      nuevo = F4(w)
-    in
-      print(crearLista([x, y, z, w]))
-Ejemplo 6
-
-begin
-  print(<(2, 5));        
-  print(>(5, 2));        
-  print(<=(3, 3));        
-  print(>=(4, 4));       
-  print(==(7, 7));        
-  print(!=(6, 9));        
-
-  print(<(2.1, 5.9));   
-  print(>(3.5, 2.4));    
-  print(<=(4.5, 4.5));    
-  print(>=(7.8, 1.1));    
-  print(==(3.14, 3.15));  
-  print(!=(1.1, 2.2));    
-
-  print(==(False, False));
-  print(!=(True, False))
-end
-
-
-Ejemplo 9
-
-if ==([1,2,3,4,7,9],[]) : list else : 0
-
-rec 
-  factorial(n) = if == (n, 0): 1 else : (n * factorial((n - 1))) 
-  map(list) = if ==(list,[]) : list else : append([factorial(cabeza(list))], [map(cola(list))])
-  registroFactorial(list) = crearRegistro(["valores", "factoriales"], [tupla[list],map(list)])
-  in 
-    registroFactorial([1,2,3,4,7,9])
-
-
-// Ejemplo 10
-var 
-x = 0 
-in 
-while < (x, 5) do
-begin set x = (x + 1);
-  rec 
-  isPar?(a) = ==((a % 2), 0)
-  in print(isPar?(x)) end
- done
-
+ejemplo oop
 
 class Person:
     def __init__(self, fname, lname):
         self.firstname = fname
         self.lastname = lname
+
 |#
 
 
-<<<<<<< HEAD
-; Punto 3
-=======
-;var r = crear-registro({a = 1; b = 2; c = 3}) in
-;begin set-registro(r, b, 42); ref-registro(r, b) end
 
-; Ejemplo 3
->>>>>>> db22f35c5ffb32f27ab3ef26ce0b120f7d738074
-#|
-begin
-var r = 9 in 
-begin
-set r = (r + 5);
-print (r)
-end end
-|#
-
-; Ejemplo 4
-#|
-begin
-const b = 7 in
-b
-end
-|#
-
-#|
-begin
-const a = 6 in
-| set a = 3,
-print (a) |
-end
-|#
-
-; Ejemplo 5
-#|
-var c = 8,
-    f = 3.7,
-    o = x8(3 4),
-    h = x16 (4 1),
-    b = x32(5 6) in
-begin
-//Primitivas constantes
-print (set c = sub1(c));
-print (set c = add1(c));
-print (set c = (((c + 2) * (c - 4)) / 10));
-print (set c = (c % 2));
-
-//Primitivas con flotantes
-print (set f = sub1(f));
-print (set f = add1(f));
-print (set f = (((f * 0.3) + (f / 2) ) - 5.5));
-print (set f = (f % 3));
-
-// Primitivas con numeros base 8
-print (set o = sub1(x8)(o));
-print (set o = add1(x8)(o));
-print (set o = (x8(2 1) +(x8) o));
-print (set o = (o -(x8) x8(5 1)));
-print (set o = (x8(2) *(x8) o));
-print (baseToDecimal(o;8));
-
-//Primitivas con hexadecimales
-print (set h = sub1(x16)(h));
-print (set h = add1(x16)(h));
-print (set h = (x16(2 6) +(x16) h));
-print (set h = (h -(x16) x16(3 5)));
-print (set h = (x16(7) *(x16) h));
-print (baseToDecimal(h;16));
-
-//Primitivas con numeros base 32
-
-print (set b = sub1(x32)(b));
-print (set b = add1(x32)(b));
-print (set b = (x32(4 7) +(x32) b));
-print (set b = (b -(x32) x32(6 1)));
-print (set b = (x32(2) *(x32) b));
-print (baseToDecimal(b;32))
-end
-|#
 
 #|  begin
     const r = 9 in 
