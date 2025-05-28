@@ -1304,30 +1304,41 @@ scan&parse
  Punto 3
 ;var r = crear-registro({a = 1; b = 2; c = 3}) in
 ;begin set-registro(r, b, 42); ref-registro(r, b) end
+----------------------------------------------------------------------------------
+// Ejemplo 2
 
+
+
+
+
+
+----------------------------------------------------------------------------------
 // Ejemplo 3
 
 begin
   var r = 9 in 
   begin
+    print (r);
     set r = (r + 5);
     print (r)
   end
 end
-
+----------------------------------------------------------------------------------
 // Ejemplo 4
 
+// punto 1
 begin
   const b = 7 in
   b
 end
 
+// punto 2
 begin
   const a = 6 in
     begin set a = 3;
     print (a) end
 end
-
+----------------------------------------------------------------------------------
 // Ejemplo 5
 
 var c = 8,
@@ -1373,7 +1384,7 @@ begin
   print (set b = (x32(2) *(x32) b));
   print (baseToDecimal(b;32))
 end
-    
+----------------------------------------------------------------------------------  
 // Ejemplo 6
 
 begin
@@ -1421,7 +1432,21 @@ begin
   print(>=(baseToDecimal(x32(3 4);32), baseToDecimal(x32(2 1);32)));
   print(<=(baseToDecimal(x32(3 4);32), baseToDecimal(x32(2 1);32)))  
 end
+----------------------------------------------------------------------------------
+// Ejemplo 7
 
+var s = "programación",
+    c = "Robinson"
+in
+  begin
+    print (longitud(s));
+    print (longitud(c));
+    set s = concatenar(s, " funcional");
+    print (s);
+    set c = concatenar(c, " Duque");
+    print (c)
+  end
+----------------------------------------------------------------------------------
 // Ejemplo 8
 
 var
@@ -1443,7 +1468,7 @@ in
       nuevo = F4(w)
     in
       print(crearLista([x, y, z, w]))
-
+----------------------------------------------------------------------------------
 // Ejemplo 9
 
 rec 
@@ -1452,11 +1477,13 @@ rec
   registroFactorial(list) = crearRegistro(["valores", "factoriales"], [tupla[list],map(list)])
   in 
     registroFactorial([1,2,3,4,7,9])
-
-
+----------------------------------------------------------------------------------
 // Ejemplo 10
+
+// punto a
 Falta el for con tuplas
 
+// punto b
 var 
 x = 0 
 in 
@@ -1466,7 +1493,7 @@ begin set x = (x + 1);
   isPar?(a) = ==((a % 2), 0)
   in print(isPar?(x)) end
  done
-
+----------------------------------------------------------------------------------
 // Ejemplo 11
 
 // Punto 1
@@ -1523,6 +1550,7 @@ in
 crearRegistro(
 ["Circuito1", "Circuito2"], [con, un])
 
+<<<<<<< HEAD
 
 // Ejemplo 12
 
@@ -1683,6 +1711,9 @@ rec
 
 
 
+=======
+----------------------------------------------------------------------------------
+>>>>>>> 4b348a09910f357cdd6788c9ce877ea6a4a7c665
 ejemplo oop
 
 class Person:
@@ -1691,25 +1722,5 @@ class Person:
         self.lastname = lname
 
 |#
-
-
-
-
-#|  begin
-    const r = 9 in 
-    |
-    set r = 8,
-    print (r)
-    | end
-
-    const r = 9 in 
-    print (r)
-
-    begin
-    const r = 9 in 
-    r
-    end
-|#
-
 
 (interpretador)
