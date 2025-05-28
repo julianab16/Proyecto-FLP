@@ -1524,6 +1524,165 @@ crearRegistro(
 ["Circuito1", "Circuito2"], [con, un])
 
 
+// Ejemplo 12
+
+  var 
+    m = 11
+  in
+  rec
+    n(x) =
+              set m = x
+  in
+    n(0)
+
+
+rec
+  Rol(r) = var
+              rol = r
+            in
+              rec
+                setRol(a) =  begin
+                                set rol = a;
+                                "seteado"
+                              end
+                getRol() = rol
+
+                dispatch(ms, arg) =
+                        if ==(ms,"setRol"): 
+                          setRol(arg)
+                        else :  if ==(ms,"getRol"): 
+                          getRol()
+                        else : "error"
+              in
+                dispatch
+
+  Persona(n,e) =  
+                  var
+                    nombre = n,
+                    edad = e,
+                    rol = Rol("Humano")
+                  in
+                    rec
+                      setNombre(a) = begin
+                                        set nombre = a;
+                                        "seteado"
+                                      end
+                      setEdad(b) =  begin
+                                      set edad = b;
+                                      "seteado"
+                                    end
+                      getNombre() = nombre
+                      getEdad() = edad
+
+                      dispatch(ms, arg) =
+                        if ==(ms,"setNombre"): 
+                          setNombre(arg)
+                        else : if ==(ms,"setEdad"): 
+                          setEdad(arg)
+                        else :  if ==(ms,"getNombre"): 
+                          getNombre()
+                        else : if ==(ms,"getEdad"): 
+                          getEdad()
+                        else : rol(ms, arg)
+                    in
+                      dispatch
+  in
+    var 
+      ob = Persona("juan",22)
+    in begin
+       print(ob("getNombre", 0));     
+       print(ob("getEdad", 0));       
+       print(ob("setNombre", "pepe")); 
+       print(ob("getNombre", 0));
+       print(ob("getRol", 0))     
+     end
+
+
+
+rec
+  Vehiculo(a,b) = var
+                    marca = a,
+                    modelo = b
+                  in
+                    rec
+                      setMarca(x) = begin
+                                        set marca = x;
+                                        "seteado"
+                                      end
+                      setModelo(y) =  begin
+                                      set modelo = y;
+                                      "seteado"
+                                    end
+                      getMarca() = marca
+                      getModelo() = modelo
+
+                      dispatch(ms, arg) =
+                        if ==(ms,"setMarca"): 
+                          setMarca(arg)
+                        else : if ==(ms,"setModelo"): 
+                          setModelo(arg)
+                        else :  if ==(ms,"getModelo"): 
+                          getModelo()
+                        else : if ==(ms,"getMarca"): 
+                          getMarca()
+                        else : "Funcion no encontrada"
+                    in
+                      dispatch
+  Moto(m) = var
+              cilindro = m,
+              vehiculo = Vehiculo("Yamaha", "2023")
+            in
+              rec
+                setCilindro(a) = begin
+                                  set cilindro = a;
+                                  "seteado"
+                                 end
+                getCilindro() = cilindro
+
+                dispatch(ms, arg) =
+                        if ==(ms,"setCilindro"): 
+                          setCilindro(arg)
+                        else :  if ==(ms,"getCilindro"): 
+                          getCilindro()
+                        else :  vehiculo(ms, arg)
+              in
+                dispatch
+  in
+    var 
+      moto1 = Moto(150),
+      moto2 = Moto(100),
+      moto3 = Moto(350)
+  in
+    begin
+        //Modelo 1
+        print(moto1("setCilindro", 100));
+        print(moto1("setModelo", "2025"));
+        print(moto1("setMarca", "Suzuki"));
+        print(moto1("getCilindro", 0));  
+        print(moto1("getMarca", 0));
+        print(moto1("getModelo", 0));
+
+        // Modelo 2
+        print(moto2("setCilindro", 124));
+        print(moto2("setModelo", "NKD 125"));
+        print(moto2("setMarca", "AKT"));
+        print(moto2("getCilindro", 0));  
+        print(moto2("getMarca", 0));
+        print(moto2("getModelo", 0));
+
+        // Modelo 3
+        print(moto3("setCilindro", 300));
+        print(moto3("setModelo", "XR650"));
+        print(moto3("setMarca", "Honda"));
+        print(moto3("getCilindro", 0));  
+        print(moto3("getMarca", 0));
+        print(moto3("getModelo", 0))
+     end
+
+
+
+
+
 ejemplo oop
 
 class Person:
