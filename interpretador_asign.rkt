@@ -1481,7 +1481,27 @@ rec
 // Ejemplo 10
 
 // punto a
-Falta el for con tuplas
+begin
+ var tupla = tupla[1,2,3,4,5] , reciprocos = [] in
+ begin
+  for n in tupla do
+   begin
+    var reciproco = (1 / n) in
+    begin
+     print("Valor:");
+     print(n);
+     print("Reciproco:");
+     print(reciproco);
+     set reciprocos = append(reciprocos, crearLista(reciproco))
+    end
+   end
+  done;
+ print("Tupla original:");
+ print(tupla);
+ print("Lista construida con los reciprocos:");
+ print(reciprocos)
+ end
+end
 
 // punto b
 var 
@@ -1550,7 +1570,6 @@ in
 crearRegistro(
 ["Circuito1", "Circuito2"], [con, un])
 
-<<<<<<< HEAD
 
 // Ejemplo 12
 
@@ -1708,12 +1727,6 @@ rec
      end
 
 
-
-
-
-=======
-----------------------------------------------------------------------------------
->>>>>>> 4b348a09910f357cdd6788c9ce877ea6a4a7c665
 ejemplo oop
 
 class Person:
