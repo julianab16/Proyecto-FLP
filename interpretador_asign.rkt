@@ -44,7 +44,7 @@
    (whitespace) skip)
   (comment
    ("//" (arbno (not #\newline))) skip)
-   (identifiers
+   (identifier
   ((or letter "_") (arbno (or letter digit "_" "?"))) symbol)
   (number
    (digit (arbno digit)) number)
