@@ -44,8 +44,8 @@
    (whitespace) skip)
   (comment
    ("//" (arbno (not #\newline))) skip)
-   (identifier
-  ((or letter "_") (arbno (or letter digit "_""?"))) symbol)
+   (identifiers
+  ((or letter "_") (arbno (or letter digit "_" "?"))) symbol)
   (number
    (digit (arbno digit)) number)
   (number
@@ -1307,11 +1307,33 @@ scan&parse
 ----------------------------------------------------------------------------------
 // Ejemplo 2
 
-
-
-
-
-
+begin
+ var
+  entero = 86,
+  flotante = 6.53,
+  
+  circuito =
+  begin
+  var A = False, B = False in
+  var c1 = circuit ((gate G2 (and) (A B)))
+  in c1 end,
+  
+  hexadecimal = x16(3 5),
+  cadena = "Hola mundo",
+  booleano = True,
+  
+  procedimiento =
+  begin
+  var x = 4 in
+  if >(x, (x / 2)): (x - 2) else: (x * 2) end,
+  
+  lista = [1, 2, 3, 4, 5],
+  registro = {nombre = "Laura"; edad = 20},
+  tupla = tupla["k", 2.8, False, "v"]
+ in
+  crearLista(entero, flotante, circuito, hexadecimal, cadena, booleano,
+             procedimiento, lista, registro, tupla)
+end
 ----------------------------------------------------------------------------------
 // Ejemplo 3
 
@@ -1481,7 +1503,27 @@ rec
 // Ejemplo 10
 
 // punto a
-Falta el for con tuplas
+begin
+ var tupla = tupla[1,2,3,4,5] , reciprocos = [] in
+ begin
+  for n in tupla do
+   begin
+    var reciproco = (1 / n) in
+    begin
+     print("Valor:");
+     print(n);
+     print("Reciproco:");
+     print(reciproco);
+     set reciprocos = append(reciprocos, crearLista(reciproco))
+    end
+   end
+  done;
+ print("Tupla original:");
+ print(tupla);
+ print("Lista construida con los reciprocos:");
+ print(reciprocos)
+ end
+end
 
 // punto b
 var 
@@ -1550,7 +1592,7 @@ in
 crearRegistro(
 ["Circuito1", "Circuito2"], [con, un])
 
-----------------------------------------------------------------------------------
+
 // Ejemplo 12
 
 rec
@@ -1632,7 +1674,6 @@ rec
         print(moto3("getMarca", 0));
         print(moto3("getModelo", 0))
      end
-
 
 
 ejemplo oop
