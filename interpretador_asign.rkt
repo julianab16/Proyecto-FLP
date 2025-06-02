@@ -45,7 +45,7 @@
   (comment
    ("//" (arbno (not #\newline))) skip)
    (identifier
-  ((or letter "_") (arbno (or letter digit "?"))) symbol)
+  ((or letter "_") (arbno (or letter digit "_""?"))) symbol)
   (number
    (digit (arbno digit)) number)
   (number
@@ -221,7 +221,7 @@
         "(" (separated-list identifier ",") ")" ":"
         (arbno assign) ) a-method-decl)
 
-    (assign  ("self" "." identifier "=" identifier ) assign-a)
+    (assign  ("self." identifier "=" identifier ) assign-a)
     ))
 
 ;******************************************************************************************
@@ -1550,82 +1550,8 @@ in
 crearRegistro(
 ["Circuito1", "Circuito2"], [con, un])
 
-<<<<<<< HEAD
-
+----------------------------------------------------------------------------------
 // Ejemplo 12
-
-  var 
-    m = 11
-  in
-  rec
-    n(x) =
-              set m = x
-  in
-    n(0)
-
-
-rec
-  Rol(r) = var
-              rol = r
-            in
-              rec
-                setRol(a) =  begin
-                                set rol = a;
-                                "seteado"
-                              end
-                getRol() = rol
-
-                dispatch(ms, arg) =
-                        if ==(ms,"setRol"): 
-                          setRol(arg)
-                        else :  if ==(ms,"getRol"): 
-                          getRol()
-                        else : "error"
-              in
-                dispatch
-
-  Persona(n,e) =  
-                  var
-                    nombre = n,
-                    edad = e,
-                    rol = Rol("Humano")
-                  in
-                    rec
-                      setNombre(a) = begin
-                                        set nombre = a;
-                                        "seteado"
-                                      end
-                      setEdad(b) =  begin
-                                      set edad = b;
-                                      "seteado"
-                                    end
-                      getNombre() = nombre
-                      getEdad() = edad
-
-                      dispatch(ms, arg) =
-                        if ==(ms,"setNombre"): 
-                          setNombre(arg)
-                        else : if ==(ms,"setEdad"): 
-                          setEdad(arg)
-                        else :  if ==(ms,"getNombre"): 
-                          getNombre()
-                        else : if ==(ms,"getEdad"): 
-                          getEdad()
-                        else : rol(ms, arg)
-                    in
-                      dispatch
-  in
-    var 
-      ob = Persona("juan",22)
-    in begin
-       print(ob("getNombre", 0));     
-       print(ob("getEdad", 0));       
-       print(ob("setNombre", "pepe")); 
-       print(ob("getNombre", 0));
-       print(ob("getRol", 0))     
-     end
-
-
 
 rec
   Vehiculo(a,b) = var
@@ -1709,11 +1635,6 @@ rec
 
 
 
-
-
-=======
-----------------------------------------------------------------------------------
->>>>>>> 4b348a09910f357cdd6788c9ce877ea6a4a7c665
 ejemplo oop
 
 class Person:
