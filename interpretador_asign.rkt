@@ -107,7 +107,7 @@
     (pred-prim ("<=") menor-igual-exp)
     (pred-prim ("==") igual-exp)
     (pred-prim ("!=") diferente-exp)
-    ; oper−bin−bool
+    ; oper-bin-bool
     (oper-bin-bool ("and") and-prim)
     (oper-bin-bool ("or") or-prim)
     ; oper-un-bool
@@ -404,10 +404,22 @@
       (exp-circuit (gate_list) gate_list)
       
       (print-exp (exp)
-          (let ((val (eval-expression exp env)))
-            (display val)
-            (newline)
-            'fin))
+        (let ((val (eval-expression exp env)))
+          (cond
+            ;; Si es un objeto, invoco su __str__
+            ((object? val)
+             (let* ((class-info   (object->class val))
+                    (str-method   (lookup-method class-info "__str__"))
+                    ;; aplico __str__ pasando la instancia como único argumento
+                    (str-result   (apply-procedure str-method (list val))))
+               (display str-result)
+               (newline)
+               'fin))
+            ;; En cualquier otro caso, comportamiento original
+            (else
+             (display val)
+             (newline)
+             'fin))))
     )))
 
 (define maybe-calls
@@ -1684,5 +1696,34 @@ class Person:
         self.lastname = lname
 
 |#
+
+(define lookup-method
+  (lambda (class-info method-name)
+    (let ((alist (class->methods class-info)))
+      (let ((entry (assoc method-name alist)))
+        (if entry
+            (cdr entry)
+            (eopl:error 'lookup-method
+                        "Método ~s no encontrado en la clase ~s"
+                        method-name
+                        (class->class-name class-info)))))))
+
+(define object?
+  (lambda (v)
+    ;; tu predicado según cómo representas instancias, p.ej. un ref
+    (reference? v)))
+
+(define object->class
+  (lambda (obj-ref)
+    ;; extrae de tu referencia interna la info de clase
+    (let ((data (deref obj-ref)))
+      (vector-ref data 0))))  ; si guardas la clase en la posición 0, por ejemplo
+
+(define class->methods
+  (lambda (c-struct)
+    (cases class c-struct
+      (a-class (class-name super-name field-length field-ids methods)
+        methods))))
+
 
 (interpretador)
