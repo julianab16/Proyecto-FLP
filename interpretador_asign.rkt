@@ -211,17 +211,15 @@
                base-to-decimal-exp)
 
     ; Objetos
-    (maybe-super () object)
-    (class-decl 
-    ("class" identifier maybe-super ":" (arbno method-decl))
-    a-class-decl)
-
-    (method-decl
-      ("def" identifier 
-        "(" (separated-list identifier ",") ")" ":"
-        (arbno assign) ) a-method-decl)
-
-    (assign  ("self." identifier "=" identifier ) assign-a)
+    (objt () m-exp)
+    (class-decl ("Class" identifier objt ":" (arbno method-decl)) a-class-decl)
+    (method-decl ("def" identifier "(" (separated-list identifier ",") ")" ":" (arbno statement)".") a-method-decl)
+    (statement ( "-" expression ) expr-stmt)
+    (expression ("new" identifier "(" (separated-list expression ",") ")") new-object-exp)
+    (statement ("return" "self."expression) assign-return)
+    (statement ("self." identifier "=" expression) assign-a)
+    (expression ("." identifier "." expression ) expr-s)
+    
     ))
 
 ;******************************************************************************************
@@ -255,6 +253,7 @@
     (sllgen:make-stream-parser 
       scanner-spec-simple-interpreter
       grammar-simple-interpreter)))
+
 
 ;*******************************************************************************************
 ;El Interprete
@@ -290,11 +289,9 @@
       (num-oct-exp (number) number)
       (num-hex-exp (number) number)
       (num-base32-exp (number) number)
-
       (id-exp (id args) 
         (let ((val (apply-env env id)))
           (maybe-calls val args env)))
-      
       (string-exp (cadena) (substring cadena 1 (- (string-length cadena) 1)))
       (primapp-num-exp (exp prim exps)
         (let ((arg (eval-expression exp env))
@@ -363,7 +360,6 @@
                           (loop (eval-exp-bool exp1 env)))
                         'fin))
                 )
-
       (for-exp (id iterable-exp body-exp)
         (let ((iterable (eval-expression iterable-exp env)))
           (let ((elements (cond 
@@ -389,8 +385,7 @@
       (register-exp (campos valores)
         (if (null? campos)
             (eopl:error "Se requiere al menos un par identificador = expresión")
-            (let* (
-                   ;; Convierte cada campo a símbolo si es un id-exp
+            (let* ( ;; Convierte cada campo a símbolo si es un id-exp
                    (campos-simbolos (map (lambda (c)
                                            (cases expression c
                                              (id-exp (id n) id)
@@ -399,28 +394,73 @@
                                          campos))
                    (valores-evaluados (map (lambda (v) (eval-expression v env)) valores)))
               (crear-registro campos-simbolos valores-evaluados))))
-        
-
       (exp-circuit (gate_list) gate_list)
-      
       (print-exp (exp)
-          (let ((val (eval-expression exp env)))
+          (let* ((val (eval-expression exp env))) 
+            (newline)
             (display val)
             (newline)
             'fin))
+
+      (new-object-exp (class-name rands)
+        (let ((args (eval-rands rands env))
+              (obj (new-object class-name)))
+          (find-method-and-apply
+            '__init__  class-name obj args)
+          obj))
+      (expr-s (obj-id attr-id)
+        (let* ((obj (apply-env env obj-id))
+              (args (cases expression attr-id
+                      (id-exp (id n) (cases maybe-call n
+                                        (call-args (rands)  cons (list id (eval-rands rands env)))
+                                        (empty-call () (list id))))
+                      (string-exp (cadena) (substring cadena 1 (- (string-length cadena) 1)))
+                      (else (eopl:error "Campo no es un identificador: ~s"  attr-id))))
+              (ar (car args))
+              (arg (if (null? (cdr args)) '() (car (cdr args)))))
+          (let ((method (find-method obj ar)))
+              (if method
+                  (get-object-field obj ar) ; o como sea que tu método se use
+                  (find-method-and-apply ar (object->class-name obj) obj arg)))
+))
     )))
+
+(define find-method 
+  (lambda (obj field-name)
+      (let* ((field-ids (object->field-ids obj))
+            (pos (list-find-position field-name field-ids)))
+        (if pos
+          pos
+          #f))))
+
+(define set-object-field!
+  (lambda (obj field-name value)
+    (let* ((fields (object->fields obj))
+           (pos (find-method obj field-name)))
+      (if (number? pos)
+          (vector-set! fields pos value)
+          (eopl:error 'set-object-field! "Campo no existe: ~s" field-name)))))
+
+(define get-object-field
+  (lambda (obj field-name)
+    (let* ((fields (object->fields obj))
+           (pos (find-method obj field-name)))
+      (if (number? pos)
+          (vector-ref fields pos)
+          (eopl:error 'get-object-field "Campo no existe: ~s" field-name)))))
 
 (define maybe-calls
   (lambda (proc-id calls env)
     (cases maybe-call calls
       (call-args (rands)
         (let* ([proc-val proc-id]
-               [arg-vals (eval-rands rands env)])
+               [arg-vals (eval-rands rands env)]
+               )
           (apply-procedure proc-val arg-vals)))
       (empty-call () proc-id))))
 
 ; funciones auxiliares para aplicar eval-expression a cada elemento de una 
-; lista de operandos (expresiones)
+; lista de operandos (expresiones) find-method-and-apply 'init proc-val obj arg-vals
 (define eval-rands
   (lambda (rands env)
     (map (lambda (x) (eval-rand x env)) rands)))
@@ -889,10 +929,6 @@
                      "registro actualizado")
                    (eopl:error "No existe el identificador")))))))
 
-
-;(define r (crear-registro '(x y) '("edad" "años")))
-;(display r)
-;(newline)
 ;******************************************************************************************
 
 ;; Funcion: eval-circuit
@@ -1161,6 +1197,42 @@
 
 ;******************************************************************************************
 ;Objetos
+(define eval-statement
+  (lambda (stmt env)
+    (cases statement stmt
+      (assign-a (field-name val-exp)
+        (let ((self (apply-env env 'self)))
+          (if self
+              (let ((value (eval-expression val-exp env)))
+                (set-object-field! self field-name value)
+                "asignado")
+              (eopl:error 'assign-a "Asignación a self fuera de un método de objeto"))))
+      (assign-return (field-name)
+        (let* ((self (apply-env env 'self))
+               (name (cases expression field-name 
+                         (id-exp (id n) id)
+                         (string-exp (cadena) (substring cadena 1 (- (string-length cadena) 1)))
+                         (else (eopl:error 'assign-return "El campo de retorno debe ser un identificador o una cadena")))))
+                       
+          (if self
+              (list 'return (get-object-field self name))
+              (eopl:error 'assign-return "Return de self fuera de un método de objeto"))))
+      (expr-stmt (exp)
+        (eval-expression exp env)))))
+
+(define eval-statements
+  (lambda (stmts env)
+    (cond
+      [(null? stmts) 'fin]
+      [else
+        (let ((result (eval-statement (car stmts) env)))
+          (if (and (pair? result) (eq? (car result) 'return))
+              (cadr result)
+              (eval-statements (cdr stmts) env)))])))
+
+(define extend-env-refs
+  (lambda (syms vec env)
+    (extended-env-record syms vec env)))
 
 ; Definición de la clase
 (define class-decl->class-name
@@ -1169,12 +1241,14 @@
       (a-class-decl (name super methods)
         name))))
 
-
 (define class-decl->super-name
   (lambda (c-decl)
     (cases class-decl c-decl
       (a-class-decl (class-name super-name m-decls)
-        super-name))))
+        (if (symbol? super-name)
+            super-name
+            'object
+            )))))
 
 (define class-decl->method-decls
   (lambda (c-decl)
@@ -1201,21 +1275,29 @@
   (lambda (mds)
     (map method-decl->method-name mds)))
 
+(define class-decl->field-ids
+  (lambda (c-decl)
+    (cases class-decl c-decl
+      (a-class-decl (class-name super-name methods)
+        (method-decls->field-ids methods)))))
+
 (define method-decls->field-ids
   (lambda (mds)
     (apply append
            (map (lambda (md)
                   (field-ids->assign-ids (method-decl->body md)))
                 mds))))
-
+                
 (define field-ids->assign-ids
   (lambda (assigns)
-    (apply append
-      (map (lambda (a)
-             (cases assign a
-               (assign-a (field-name val-name)
-                 (list field-name))))
-           assigns))))
+    (let ((lst (if (list? assigns) assigns (list assigns))))
+      (apply append
+        (map (lambda (a)
+               (cases statement a
+                 (assign-a (field-name val-exp)
+                   (list field-name))
+                 (else '())))
+             lst)))))
 
 (define-datatype class class?
   (a-class
@@ -1230,15 +1312,94 @@
     (method-decl method-decl?)
     (super-name symbol?)
     (field-ids (list-of symbol?))
-    (methods method-environment?)))
+    ))
+
+(define-datatype objecto objecto? 
+  (an-object
+    (class-name symbol?)
+    (fields vector?)))
+
+(define new-object
+  (lambda (class-name)
+    (an-object
+      class-name
+      (make-vector (class-name->field-length class-name)))))
+
+#|(apply-procedure proc-val arg-vals) |#
+(define find-method-and-apply
+  (lambda (m-name host-name self args)
+    (let loop ((host-name host-name))
+      (if (eqv? host-name 'object)
+          (eopl:error 'find-method-and-apply
+            "No method for name ~s" m-name)
+          (let ((method (lookup-method m-name
+                          (class-name->methods host-name))))
+            (if (method? method)
+                (begin
+                  ;; Validación de argumentos
+                  (let*  ((ids (method->ids method))
+                            (params (cdr ids)))
+                    (when (not (= (length params) (length args)))
+                      (eopl:error 'find-method-and-apply
+                        "Número de argumentos (~a) no coincide con los parámetros (~a) del método ~a"
+                        (length args) (length params) m-name)))
+                  (apply-method method host-name self args))
+                (loop (class-name->super-name host-name))))))))
+
+(define lookup-method
+  (lambda (m-name methods)
+    (cond
+      ((null? methods) #f)
+      ((eqv? m-name (method->method-name (car methods)))
+       (car methods))
+      (else (lookup-method m-name (cdr methods))))))
+      
+(define apply-method
+  (lambda (method host-name self args)
+    (let* ((ids (method->ids method))           ; (self fname lname)
+           (params (cdr ids))                   ; (fname lname)
+           (body (method->body method))
+           (super-name (method->super-name method))
+           (field-ids (method->field-ids method))
+           (fields (object->fields self)))
+      (when (not (= (length params) (length args)))
+        (eopl:error 'apply-method
+          "Número de argumentos (~a) no coincide con los parámetros (~a) del método ~a"
+          (length args) (length params) (car ids)))
+      (eval-statements body
+        (extend-env
+          (cons '%super (cons 'self params))
+          (cons super-name (cons self args))
+          (extend-env-refs field-ids fields (empty-env)))))))
+
+(define apply-metho
+  (lambda (method host-name self args)        
+    (let ((ids (method->ids method))
+          (body (method->body method))
+          (super-name (method->super-name method))
+          (field-ids (method->field-ids method))       
+          (fields (object->fields self)))
+      (eval-expression body
+        (extend-env
+          (cons '%super (cons 'self ids))
+          (cons super-name (cons self args))
+          (extend-env-refs field-ids fields (empty-env)))))))
 
 (define method-environment? (list-of method?))
 
+; Construrtor de Clases
+(define elaborate-class-decls!
+  (lambda (c-decls)
+    (initialize-class-env!)
+    (for-each elaborate-class-decl! c-decls)))
+
+; Construye y agrega una clase al entorno global
 (define elaborate-class-decl!
   (lambda (c-decl)
-    (let ((super-name (class-decl->super-name c-decl))
-          (methods (class-decl->method-decls c-decl)))
-      (let ((field-ids (method-decls->field-ids methods)))
+    (let ((super-name (class-decl->super-name c-decl)))
+      (let ((field-ids  (append
+                          (class-name->field-ids super-name)
+                          (class-decl->field-ids c-decl))))
         (add-to-class-env!
          (a-class
            (class-decl->class-name c-decl)
@@ -1246,8 +1407,9 @@
            (length field-ids)
            field-ids
            (roll-up-method-decls
-             methods super-name field-ids)))))))
+             c-decl super-name field-ids)))))))
 
+; Busca una clase por nombre en el entorno global
 (define lookup-class                    
   (lambda (name)
     (let loop ((env the-class-env))
@@ -1257,26 +1419,30 @@
         ((eqv? (class->class-name (car env)) name) (car env))
         (else (loop (cdr env)))))))
 
+; Convierte declaraciones de métodos en estructuras de métodos
 
 (define roll-up-method-decls
-  (lambda (methods super-name field-ids)
+  (lambda (c-decl super-name field-ids)
     (map
       (lambda (m-decl)
         (a-method m-decl super-name field-ids))
-      (methods))))
+      (class-decl->method-decls c-decl))))
 
+; Extrae el nombre de la clase de una estructura clase
 (define class->class-name
   (lambda (c-struct)
     (cases class c-struct
       (a-class (class-name super-name field-length field-ids methods)
         class-name))))
 
+; Extrae los campos de una estructura clase
 (define class->field-ids
   (lambda (c-struct)
     (cases class c-struct
       (a-class (class-name super-name field-length field-ids methods)
         field-ids))))
 
+; Dado un nombre de clase, retorna sus campos (o vacío si es 'object)
 (define class-name->field-ids
   (lambda (class-name)
     (if (eqv? class-name 'object) '()
@@ -1284,26 +1450,108 @@
 
 (define the-class-env '())
 
-(define elaborate-class-decls!
-  (lambda (c-decls)
-    (set! the-class-env c-decls)))
+(define initialize-class-env!
+  (lambda ()
+    (set! the-class-env '())))
 
 (define add-to-class-env!
   (lambda (class)
     (set! the-class-env (cons class the-class-env))))
 
+(define class->super-name
+  (lambda (c-struct)
+    (cases class c-struct
+      (a-class (class-name super-name field-length field-ids methods)
+        super-name))))
+
+(define class->field-length
+  (lambda (c-struct)
+    (cases class c-struct
+      (a-class (class-name super-name field-length field-ids methods)
+        field-length))))
+
+
+(define class->methods
+  (lambda (c-struct)
+    (cases class c-struct
+      (a-class (class-name super-name field-length field-ids methods)
+        methods))))
+
+(define object->class-name
+  (lambda (obj)
+    (cases objecto obj
+      (an-object (class-name fields)
+        class-name))))
+
+(define object->fields
+  (lambda (obj)
+    (cases objecto obj
+      (an-object (class-decl fields)
+        fields))))
+
+(define object->class-decl
+  (lambda (obj)
+    (lookup-class (object->class-name obj))))
+
+(define object->field-ids
+  (lambda (object)
+    (class->field-ids
+      (object->class-decl object))))
+
+(define class-name->super-name
+  (lambda (class-name)
+    (class->super-name (lookup-class class-name))))
+
+(define class-name->methods
+  (lambda (class-name)
+    (if (eqv? class-name 'object) '()
+      (class->methods (lookup-class class-name)))))
+
+(define class-name->field-length
+  (lambda (class-name)
+    (if (eqv? class-name 'object)
+        0
+        (class->field-length (lookup-class class-name)))))
+
+(define method->method-decl
+  (lambda (meth)
+    (cases method meth
+      (a-method (meth-decl super-name field-ids) meth-decl))))
+
+(define method->super-name
+  (lambda (meth)
+    (cases method meth
+      (a-method (meth-decl super-name field-ids) super-name))))
+
+(define method->field-ids
+  (lambda (meth)
+    (cases method meth
+      (a-method (method-decl super-name field-ids ) field-ids))))
+
+(define method->method-name
+  (lambda (method)
+    (method-decl->method-name (method->method-decl method))))
+
+(define method->body
+  (lambda (method)
+    (method-decl->body (method->method-decl method))))
+
+(define method->ids
+  (lambda (method)
+    (method-decl->ids (method->method-decl method))))
+
 ;******************************************************************************************
 
 just-scan
 scan&parse
-;(display (scan&parse "mergeCircuits(c1, c2, and, G3)"))
+
 ;(display (show-the-datatypes))
 
 #| SUSTENCIA EJEMPLOS
 
  Punto 3
-;var r = crear-registro({a = 1; b = 2; c = 3}) in
-;begin set-registro(r, b, 42); ref-registro(r, b) end
+var r = crearRegistro({a = 1; b = 2; c = 3}) in
+begin setRegistro(r, b, 42); refRegistro(r, b) end
 ----------------------------------------------------------------------------------
 // Ejemplo 2
 
@@ -1678,11 +1926,45 @@ rec
 
 ejemplo oop
 
-class Person:
+Class Person:
+def __init__(self, fname, lname):
+  self.firstname = fname
+  self.lastname = lname.
+def getName(self):
+  return self.firstname.
+var x = new Person("John", "Doe") in .x.getName()
+
+Class Person:
     def __init__(self, fname, lname):
         self.firstname = fname
         self.lastname = lname
+    def __str_(self):
+        return self.firstname
+var x = new Person("John", "Doe") in print(.x.firstname)
 
+
+#|Class Person:
+def __init__(self, fname, lname):
+self.firstname = fname
+self.lastname = lname.
+def getName(self):
+return self.firstname.
+var x = new Person("John", "Doe") 
+ in print(x)
+|#
+
+Class Person:
+def __init__(self, fname, lname):
+self.firstname = fname
+self.lastname = lname.
+def getName(self):
+return self.firstname.
+def setName(self, fname):
+self.firstname = fname.
+
+var x = new Person("John", "Doe") in
+var y = .x.setName("Juan") in
+print(x)
 |#
 
 (interpretador)
