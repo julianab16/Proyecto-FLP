@@ -107,7 +107,7 @@
     (pred-prim ("<=") menor-igual-exp)
     (pred-prim ("==") igual-exp)
     (pred-prim ("!=") diferente-exp)
-    ; oper−bin−bool
+    ; oper-bin-bool
     (oper-bin-bool ("and") and-prim)
     (oper-bin-bool ("or") or-prim)
     ; oper-un-bool
@@ -420,9 +420,8 @@
               (arg (if (null? (cdr args)) '() (car (cdr args)))))
           (let ((method (find-method obj ar)))
               (if method
-                  (get-object-field obj ar) ; o como sea que tu método se use
-                  (find-method-and-apply ar (object->class-name obj) obj arg)))
-))
+                  (get-object-field obj ar) 
+                  (find-method-and-apply ar (object->class-name obj) obj arg)))))
     )))
 
 (define find-method 
@@ -1954,17 +1953,36 @@ var x = new Person("John", "Doe")
 |#
 
 Class Person:
+  def __init__(self, fname, lname):
+    self.firstname = fname
+    self.lastname = lname.
+  def getName(self):
+    return self.firstname.
+  def setName(self, name):
+    self.firstname = fname.
+
+var x = new Person("John", "Doe") in
+var y = .x.setName("Juan") in
+print(x)
+
+
+Class Person:
 def __init__(self, fname, lname):
-self.firstname = fname
-self.lastname = lname.
+  self.firstname = fname
+  self.lastname = lname.
 def getName(self):
-return self.firstname.
-def setName(self, fname):
+  return self.firstname.
+def setName(self, name):
+-begin
+    set firstname = name;
+    "seteado"
+  end.
 self.firstname = fname.
 
 var x = new Person("John", "Doe") in
 var y = .x.setName("Juan") in
 print(x)
 |#
+
 
 (interpretador)
